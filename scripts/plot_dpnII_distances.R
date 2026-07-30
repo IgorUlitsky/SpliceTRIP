@@ -112,24 +112,38 @@ print(paste("Real: median", median(realDist), " mean", round(mean(realDist),1)))
 print(paste("Random TTAA background: median", median(randDist), " mean", round(mean(randDist),1)))
 
 dir.create(dirname(paste0(path, outPdf)), showWarnings = FALSE, recursive = TRUE)
-pdf(paste0(path, outPdf), width = 10, height = 5)
-par(mfrow = c(1,2))
+pdf(paste0(path, outPdf), width = 10, height = 5.5)
+par(mfrow = c(1,2), oma = c(0,0,2.5,0))
 
-# Linear scale, zoomed to the 99th percentile of the pooled data so a handful of very
-# distant outliers don't compress the whole histogram into one bar.
+capLabel = paste0("outlier-exclusion cap = ", round(maxPlausibleDist,1),
+                   " bp (10x the ", round(expectedDist,1), " bp expected-by-chance spacing at ",
+                   genomeGC*100, "% GC)")
+
+# Linear scale, zoomed to the 99th percentile of the pooled data (a SEPARATE, purely
+# cosmetic zoom -- not the outlier-exclusion cap above) so a handful of distant points
+# don't compress the whole histogram into one bar. This zoom is often well below
+# maxPlausibleDist, so values beyond the visible x-axis here are real, retained data, not
+# a sign the outlier cap failed -- see the log10 panel for the full range, and capLabel
+# above for the actual exclusion threshold.
 capAt = quantile(c(realDist, randDist), 0.99)
 breaksLinear = seq(0, capAt, length.out = 41)
 histReal = hist(pmin(realDist, capAt), breaks = breaksLinear, plot = FALSE)
 histRand = hist(pmin(randDist, capAt), breaks = breaksLinear, plot = FALSE)
 yMax = max(histReal$density, histRand$density)
 plot(histRand, freq = FALSE, col = rgb(0.5,0.5,0.5,0.5), border = NA, ylim = c(0, yMax),
-     xlab = "Distance to nearest downstream DpnII site (bp)", main = "Linear scale (capped at p99)")
+     xlab = "Distance to nearest downstream DpnII site (bp)",
+     main = paste0("Linear scale (zoomed to pooled p99 = ", round(capAt), " bp)"))
 plot(histReal, freq = FALSE, col = rgb(0.85,0.2,0.2,0.5), border = NA, add = TRUE)
+if (maxPlausibleDist <= capAt) {
+  abline(v = maxPlausibleDist, lty = 2)
+  text(maxPlausibleDist, yMax, "cap", pos = 2, cex = 0.8)
+}
 legend("topright", legend = c(paste0("Real (n=", length(realDist), ")"),
                                paste0("Random TTAA (n=", length(randDist), ")")),
        fill = c(rgb(0.85,0.2,0.2,0.5), rgb(0.5,0.5,0.5,0.5)), border = NA, bty = "n")
 
-# log10(dist+1), full range, to see the tail.
+# log10(dist+1), full range (up to maxPlausibleDist -- everything beyond that was already
+# excluded above), so the outlier cap itself is visible as a vertical line here.
 logReal = log10(realDist + 1)
 logRand = log10(randDist + 1)
 breaksLog = seq(0, max(c(logReal, logRand)), length.out = 41)
@@ -137,11 +151,15 @@ histRealLog = hist(logReal, breaks = breaksLog, plot = FALSE)
 histRandLog = hist(logRand, breaks = breaksLog, plot = FALSE)
 yMaxLog = max(histRealLog$density, histRandLog$density)
 plot(histRandLog, freq = FALSE, col = rgb(0.5,0.5,0.5,0.5), border = NA, ylim = c(0, yMaxLog),
-     xlab = "log10(distance + 1) (bp)", main = "Log scale (full range)")
+     xlab = "log10(distance + 1) (bp)", main = "Log scale (full retained range)")
 plot(histRealLog, freq = FALSE, col = rgb(0.85,0.2,0.2,0.5), border = NA, add = TRUE)
+abline(v = log10(maxPlausibleDist + 1), lty = 2)
+text(log10(maxPlausibleDist + 1), yMaxLog, "cap", pos = 2, cex = 0.8)
 legend("topright", legend = c(paste0("Real (n=", length(realDist), ")"),
                                paste0("Random TTAA (n=", length(randDist), ")")),
        fill = c(rgb(0.85,0.2,0.2,0.5), rgb(0.5,0.5,0.5,0.5)), border = NA, bty = "n")
+
+mtext(capLabel, outer = TRUE, cex = 0.9, line = 0.5)
 
 dev.off()
 print(paste("Wrote", paste0(path, outPdf)))
