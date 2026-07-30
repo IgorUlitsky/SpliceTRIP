@@ -38,6 +38,22 @@ several GB) and should be wrapped in `bsub` for production use.
 See `config/example_config.txt` for the config format (`### GLOBAL` / `### SAMPLES` / `### MAPS` /
 `### COMBOS`). Verified end-to-end on real (subsampled) data from stages 01 through 07.
 
+## Production configs
+
+- `config/single_combined_config.txt` — 4 constructs (5ss, CPA, 5ss_noP, CPA_noP), 68 samples,
+  48 combos. Derived verbatim from `single_combined/{5ss,CPA,5ss_noP,CPA_noP}.txt` + `combos.txt`.
+- `config/introntrip_combined_config.txt` — 8 constructs (A1, B1, C1, D1, E1, H1, B3-6, B3-9),
+  96 samples, 48 combos. Derived verbatim from `IntronTRIP_combined/{A1,...,B3-9}.txt` + `combos.txt`.
+
+Both configs use the optional 7th `### SAMPLES` column, `contamination_batch`, so stage 05 runs
+filterContaminants once per real sequencing run (matching the historical `run3.txt`/`run5.txt` /
+`IntronTRIP_run{2,3,4}.txt` fileLists) rather than pooling every map sample across runs into one
+comparison — index-hopping contamination can only happen between samples multiplexed together on
+the same flowcell.
+
+See `docs/count_exp_reference.md` for the real historical `cut_norm.csh`/`count_exp.csh` commands
+that stage 01's `count` mode is a parameterised template of.
+
 ## Resolved from the two repos' open discrepancies
 
 1. **Stage 03 `barcodes_poses.txt` column count.** Kept the alignment-`Length` column (10 cols from

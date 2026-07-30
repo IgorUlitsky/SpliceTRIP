@@ -146,15 +146,26 @@ done < "$PARSED/SAMPLES.tsv"
 echo
 
 # =============================================================================
-# Stage 05: filterContaminants -- one run, across all map-mode samples/groups at once
+# Stage 05: filterContaminants -- one run PER contamination batch (7th SAMPLES column).
+# Index-hopping contamination is a sequencing-run/flowcell artefact: samples that were
+# never multiplexed together can't contaminate each other, so real historical fileLists
+# (e.g. run3.txt/run5.txt, IntronTRIP_run2.txt/_run3.txt/_run4.txt) are scoped one per
+# physical run, not one global fileList across every map sample in a combined dataset.
+# Samples with no batch value fall into a single "default" batch (old/simple configs
+# without a 7th column keep working as one global run, same as before this change).
 # =============================================================================
 echo "=== Stage 05: filterContaminants ==="
-FILELIST="$WORK/.pipeline_fileList.txt"
-awk -F'\t' '$5=="map"{print $1"\t"$6}' "$PARSED/SAMPLES.tsv" > "$FILELIST"
-if [ -s "$FILELIST" ]; then
-  Rscript "$SCRIPTS/05_filterContaminants_uniform.R" "$WORK/" "$(basename "$FILELIST")" "$CONT_FACTOR"
-else
+BATCHES=$(awk -F'\t' '$5=="map"{print ($7==""?"default":$7)}' "$PARSED/SAMPLES.tsv" | sort -u)
+if [ -z "$BATCHES" ]; then
   echo "no map-mode samples, skipping"
+else
+  while read -r batch; do
+    [ -z "$batch" ] && continue
+    FILELIST="$WORK/.pipeline_fileList.${batch}.txt"
+    awk -F'\t' -v b="$batch" '$5=="map" && ($7==""?"default":$7)==b {print $1"\t"$6}' "$PARSED/SAMPLES.tsv" > "$FILELIST"
+    echo "-- batch: $batch ($(wc -l < "$FILELIST") sample(s)) --"
+    Rscript "$SCRIPTS/05_filterContaminants_uniform.R" "$WORK/" "$(basename "$FILELIST")" "$CONT_FACTOR"
+  done <<< "$BATCHES"
 fi
 echo
 

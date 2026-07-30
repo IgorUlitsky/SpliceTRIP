@@ -18,14 +18,21 @@ R1_SUFFIX	GGATC
 R2_PRIMER	GTACGTCACAATATGATTATCTTTCTAGGGTTAA
 
 ### SAMPLES
-# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mode(map|count)<TAB>contamination_group(map mode only; "-" for count mode)
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mode(map|count)<TAB>contamination_group(map mode only; "-" for count mode)<TAB>contamination_batch(optional, map mode only)
 #
 # path_prefix is the path *including* the sample name, WITHOUT the R1/R2 suffix, e.g. for
 #   /home/projects/ulitsky/igoru/data/human/TRIP/run3/Map_CPA_noP_rep1_S93_R1_001.fastq.gz
 # path_prefix = /home/projects/ulitsky/igoru/data/human/TRIP/run3/Map_CPA_noP_rep1_S93
 # and r1_suffix/r2_suffix = _R1_001.fastq.gz / _R2_001.fastq.gz
-Map_5ss_noP_pool1_rep2_S166	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_5ss_noP_pool1_rep2_S166	_R1_001.fastq.gz	_R2_001.fastq.gz	map	5ss_noP
-Map_CPA_noP_pool1_rep2_S164	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_CPA_noP_pool1_rep2_S164	_R1_001.fastq.gz	_R2_001.fastq.gz	map	CPA_noP
+#
+# contamination_batch (7th column, optional): stage 05 runs filterContaminants once PER
+# DISTINCT batch value among map-mode samples, comparing only samples that share a batch
+# (real index-hopping contamination can only happen between samples multiplexed on the
+# same physical sequencing run, so this matches the real historical practice of one
+# fileList per run directory, e.g. run3.txt/run5.txt). Leave blank to put every map-mode
+# sample in a single implicit "default" batch (fine for a config that only spans one run).
+Map_5ss_noP_pool1_rep2_S166	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_5ss_noP_pool1_rep2_S166	_R1_001.fastq.gz	_R2_001.fastq.gz	map	5ss_noP	run5
+Map_CPA_noP_pool1_rep2_S164	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_CPA_noP_pool1_rep2_S164	_R1_001.fastq.gz	_R2_001.fastq.gz	map	CPA_noP	run5
 Norm_5ss_noP_rep2_S92	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Norm_5ss_noP_rep2_S92	_R1_001.fastq.gz	_R2_001.fastq.gz	count	-
 Exp_total_5ss_noP_pool2_rep2_S80	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Exp_total_5ss_noP_pool2_rep2_S80	_R1_001.fastq.gz	_R2_001.fastq.gz	count	-
 
