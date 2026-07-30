@@ -73,13 +73,16 @@ map)
   ;;
 
 count)
-  # Norm / Exp libraries: single pass, R2 is not used downstream. -g is UNANCHORED here
-  # (no leading ^), matching every real historical cut_norm.csh/cut_exp.csh verified across
-  # run2/run4/run7/SON_run2/IntronTRIP_run2 -- an anchored ^ was found to have crept in here
-  # and would be stricter than what was actually run (requiring the primer at read position
-  # 0 exactly, dropping reads with a few extra leading bases that the real commands kept).
+  # Norm / Exp libraries: single anchored pass, R2 is not used downstream. -g is ANCHORED
+  # (leading ^) per igoru's explicit direction -- confirmed against real actually-submitted
+  # bsub .csh job scripts (e.g. run2/5ss_Norm_rep1_S60.csh, run2/5ss_Expression_rep1_S56.csh,
+  # IntronTRIP_run2/TRIP_RNA_spliced_B3-6_1-1_S53.csh), which anchor -g for Norm/Exp
+  # libraries. Note the generic cut_norm.csh/count_exp.csh batch-loop templates in some run
+  # directories use an unanchored form instead -- real historical usage is inconsistent
+  # across runs, but the per-sample bsub scripts (what was actually executed) anchor it, and
+  # that's the convention to follow here.
   cutadapt -j "$THREADS" -n 1 --cut 4 \
-    -g "${R1_PRIMER}${NS}${R1_SUFFIX}" \
+    -g "^${R1_PRIMER}${NS}${R1_SUFFIX}" \
     --rename='{id} umi={cut_prefix} adapter={adapter_name} barcode={match_sequence}' \
     -o "01_cutadapt/${NAME}.R1.fastq.gz" -p "01_cutadapt/${NAME}.R2.fastq.gz" \
     "${NAME}_R1_001.fastq.gz" "${NAME}_R2_001.fastq.gz" \

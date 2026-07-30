@@ -1,20 +1,38 @@
 # Real `cut_norm.csh` / `count_exp.csh` commands (reference for stage 01 `count` mode)
 
-`scripts/01_run_cutadapt.sh count <name>` is a parameterised template of the real per-run
-`.csh` job scripts below — not a new invention. This file collects the verbatim source
-commands used to build and verify it, so the correspondence stays checkable.
+`scripts/01_run_cutadapt.sh count <name>` is a parameterised template of real production
+job scripts — not a new invention. This file collects the verbatim source commands used to
+build and verify it, so the correspondence stays checkable.
 
-## cutadapt call (Norm/Exp libraries)
+## cutadapt call (Norm/Exp libraries): anchored `-g`
 
-`IntronTRIP_run2/cut_norm.csh`:
+Stage 01's `count` mode anchors `-g` (`-g "^${R1_PRIMER}${NS}${R1_SUFFIX}"`), per igoru's
+explicit direction. This matches the real, actually-*submitted* per-sample bsub `.csh` job
+scripts, e.g.:
+
+`run2/5ss_Norm_rep1_S60.csh`:
+```csh
+bsub ... "ml cutadapt; cutadapt -j 20 -n 1 --cut 4 -g ^AGAAGTTCAACTCGGTACCAGAGCCACCNNNNNNNNNNNNNNNNNN --rename='{id} umi={cut_prefix} adapter={adapter_name} barcode={match_sequence}' -o 01_cutadapt/5ss_Norm_rep1_S60.R1.fastq.gz -p 01_cutadapt/5ss_Norm_rep1_S60.R2.fastq.gz 5ss_Norm_rep1_S60_R1_001.fastq.gz 5ss_Norm_rep1_S60_R2_001.fastq.gz --discard-untrimmed > 5ss_Norm_rep1_S60_cutadapt.log"
+```
+
+`IntronTRIP_run2/TRIP_RNA_spliced_B3-6_1-1_S53.csh` (anchored, and *with* the `GGATC`
+suffix that stage 01 also includes):
+```csh
+bsub ... "ml cutadapt; cutadapt -j 20 -n 1 --cut 4 -g ^AGAAGTTCAACTCGGTACCAGAGCCACCNNNNNNNNNNNNNNNNNNGGATC -G  ^CGGGTTACAAAGGACTCAGGATCCACGAACTCAGCAGTGATGATTATTCTACAGAAGAAGA --rename='{id} umi={cut_prefix} adapter={adapter_name} barcode={match_sequence}' -o TRIP_RNA_spliced_B3-6_1-1_S53.R1.fastq.gz -p TRIP_RNA_spliced_B3-6_1-1_S53.R2.fastq.gz TRIP_RNA_spliced_B3-6_1-1_S53_R1_001.fastq.gz TRIP_RNA_spliced_B3-6_1-1_S53_R2_001.fastq.gz --discard-untrimmed > TRIP_RNA_spliced_B3-6_1-1_S53_cutadapt.log"
+```
+
+**Real historical usage is inconsistent across runs** — the generic `cut_norm.csh`/
+`count_exp.csh` batch-loop templates in some run directories (e.g. `IntronTRIP_run2/
+cut_norm.csh`, below) use an *unanchored* `-g`, and a few per-sample scripts
+(`IntronTRIP_run4/Norm_B1_1_1_S1.csh`, `SON_run2/SON_TRIP_A1_1_1_DMSO_Spliced_Rep2_S24.csh`)
+are also unanchored. Anchored was chosen as the convention to follow going forward.
+
+`IntronTRIP_run2/cut_norm.csh` (unanchored batch-loop template, shown for contrast — not
+what stage 01 follows):
 
 ```csh
 cat names.norm.txt | while read p; do echo $p; cutadapt -j 10 -n 1 --cut 4 -g AGAAGTTCAACTCGGTACCAGAGCCACCNNNNNNNNNNNNNNNNNNGGATC --rename='{id} umi={cut_prefix} adapter={adapter_name} barcode={match_sequence}' -o ./01_cutadapt/${p}.R1.fastq.gz -p ./01_cutadapt/${p}.R2.fastq.gz ${p}_R1_001.fastq.gz ${p}_R2_001.fastq.gz --discard-untrimmed > ${p}_cutadapt.log;done
 ```
-
-Note `-g` here is **unanchored** (no leading `^`). Stage 01's `count` mode had briefly
-regressed to an anchored `-g "^..."`, which is stricter than this real command (requires
-the primer at read position 0 exactly) — fixed to match this verbatim.
 
 ## Barcode counting (the "`count_exp.csh`" step)
 
