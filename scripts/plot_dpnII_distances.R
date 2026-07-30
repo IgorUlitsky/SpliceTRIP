@@ -69,11 +69,29 @@ nearestDownstreamDpnII <- function(chrom, pos, strand, byChrom)
   }
 }
 
+# A handful of distances come out implausibly large (multi-kb to tens of kb) -- almost
+# certainly assembly gaps (N stretches) or other low-complexity/repeat-masked regions
+# where the reference genuinely has no GATC for a long stretch, not a real biological
+# signal. Cap at 10x the by-chance expected distance (assuming a gap-free genome at
+# genomeGC% GC content, independent bases: P(GATC) = (GC/2)^2 * ((1-GC)/2)^2, expected
+# distance = 1/P(GATC)) and drop anything beyond that rather than let a few genome-gap
+# outliers distort the histograms/means. Applied to both real and background distances
+# identically -- the real dnpII_dists.txt files already have this applied by stage 06,
+# but re-applying here is a no-op on those and correctly still applies to the freshly
+# computed random-TTAA background below.
+genomeGC = 0.44
+pGATC = (genomeGC/2)^2 * ((1-genomeGC)/2)^2
+expectedDist = 1/pGATC
+maxPlausibleDist = 10 * expectedDist
+print(paste0("Expected by-chance DpnII spacing at ", genomeGC*100, "% GC (no Ns): ",
+             round(expectedDist,1), " bp; dropping distances beyond 10x that (",
+             round(maxPlausibleDist,1), " bp)"))
+
 # --- Real distances: pool every listed dnpII_dists.txt file ---
 print("Loading real barcode DpnII distances")
 realTabs = lapply(strsplit(distFiles, ",")[[1]], function(f) read.table(paste0(path, f), sep = "\t", header = TRUE, stringsAsFactors = FALSE))
 realDist = unlist(lapply(realTabs, function(t) t$dpnII_dist))
-realDist = realDist[!is.na(realDist)]
+realDist = realDist[!is.na(realDist) & realDist <= maxPlausibleDist]
 print(paste(length(realDist), "real genuine-barcode distances loaded"))
 
 # --- Background: nSample random TTAA sites, random strand, same distance metric ---
@@ -87,7 +105,7 @@ randChrom = ttaa$chrom[sampleIdx]
 randPos = ttaa$start[sampleIdx]
 randStrand = sample(c("+","-"), length(sampleIdx), replace = TRUE)
 randDist = mapply(nearestDownstreamDpnII, randChrom, randPos, randStrand, MoreArgs = list(byChrom = dpniiByChrom))
-randDist = randDist[!is.na(randDist)]
+randDist = randDist[!is.na(randDist) & randDist <= maxPlausibleDist]
 print(paste(length(randDist), "random-TTAA background distances computed"))
 
 print(paste("Real: median", median(realDist), " mean", round(mean(realDist),1)))

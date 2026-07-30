@@ -148,6 +148,24 @@ nearestDownstreamDpnII <- function(chrom, pos, strand, byChrom)
 singletonsOrdered = singletons[order(singletons$chr,as.numeric(singletons$start)),]
 dpniiDist = mapply(nearestDownstreamDpnII, singletonsOrdered$chr, as.numeric(singletonsOrdered$start),
                     singletonsOrdered$strand, MoreArgs = list(byChrom = dpniiByChrom))
+
+# A handful of distances come out implausibly large (multi-kb to tens of kb) -- almost
+# certainly assembly gaps (N stretches) or other low-complexity/repeat-masked regions
+# where the reference genuinely has no GATC for a long stretch, not a real biological
+# signal. Cap at 10x the by-chance expected distance (assuming a gap-free genome at
+# genomeGC% GC content, independent bases: P(GATC) = (GC/2)^2 * ((1-GC)/2)^2, expected
+# distance = 1/P(GATC)) and set anything beyond that to NA, excluded from downstream
+# means/plots rather than distorting them with a few genome-gap outliers.
+genomeGC = 0.44
+pGATC = (genomeGC/2)^2 * ((1-genomeGC)/2)^2
+expectedDist = 1/pGATC
+maxPlausibleDist = 10 * expectedDist
+nCapped = sum(!is.na(dpniiDist) & dpniiDist > maxPlausibleDist)
+dpniiDist[!is.na(dpniiDist) & dpniiDist > maxPlausibleDist] = NA_real_
+print(paste0("Expected by-chance DpnII spacing at ", genomeGC*100, "% GC (no Ns): ",
+             round(expectedDist,1), " bp; NA-ing ", nCapped,
+             " distances beyond 10x that (", round(maxPlausibleDist,1), " bp)"))
+
 print(paste("DpnII downstream distance: median", median(dpniiDist, na.rm = TRUE),
             "bp across", sum(!is.na(dpniiDist)), "of", length(dpniiDist), "positions"))
 write.table(
