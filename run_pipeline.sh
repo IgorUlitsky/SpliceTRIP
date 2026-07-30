@@ -52,7 +52,7 @@ echo
 PARSED=$(mktemp -d)
 trap 'rm -rf "$PARSED"' EXIT
 
-for section in GLOBAL SAMPLES MAPS COMBOS; do
+for section in GLOBAL FASTQ_MAPS FASTQ_NORM FASTQ_SAMPLES COMBOS; do
   awk -v s="### $section" '
     $0==s {grab=1; next}
     /^### /{grab=0}
@@ -68,7 +68,7 @@ done < "$PARSED/GLOBAL.tsv"
 
 : "${BARCODE_LEN:?BARCODE_LEN missing from ### GLOBAL}"
 : "${BOWTIE2_INDEX:?BOWTIE2_INDEX missing from ### GLOBAL}"
-: "${CONT_FACTOR:=30}"
+: "${CONT_FACTOR:=10}"
 : "${R1_PRIMER:?R1_PRIMER missing from ### GLOBAL}"
 : "${R1_SUFFIX:?R1_SUFFIX missing from ### GLOBAL}"
 : "${R2_PRIMER:?R2_PRIMER missing from ### GLOBAL}"
@@ -96,73 +96,81 @@ stageFastq() {
 }
 
 # =============================================================================
-# Stage 01 (+ barcode/count extraction) and stage 02 (Map-mode only)
+# Stage 01 (+ barcode/count extraction): ### FASTQ_MAPS in map mode, ### FASTQ_NORM + ### FASTQ_SAMPLES
+# in count mode.
 # =============================================================================
 echo "=== Stage 01: cutadapt ==="
-while IFS=$'\t' read -r name pathPrefix r1suf r2suf mode group; do
+while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
-  echo "-- $name (mode=$mode) --"
+  echo "-- $name (mode=map) --"
   stageFastq "$name" "$pathPrefix" "$r1suf" "$r2suf"
-  bash "$SCRIPTS/01_run_cutadapt.sh" "$mode" "$name" "$THREADS"
-done < "$PARSED/SAMPLES.tsv"
+  bash "$SCRIPTS/01_run_cutadapt.sh" map "$name" "$THREADS"
+done < "$PARSED/FASTQ_MAPS.tsv"
+
+for section in FASTQ_NORM FASTQ_SAMPLES; do
+  while IFS=$'\t' read -r name pathPrefix r1suf r2suf; do
+    [ -z "$name" ] && continue
+    echo "-- $name (mode=count) --"
+    stageFastq "$name" "$pathPrefix" "$r1suf" "$r2suf"
+    bash "$SCRIPTS/01_run_cutadapt.sh" count "$name" "$THREADS"
+  done < "$PARSED/$section.tsv"
+done
 echo
 
 if [ "$TARGET" = "cutadapt" ]; then echo "target=cutadapt reached, stopping."; exit 0; fi
 
-echo "=== Stage 02: bowtie2 (map-mode samples only) ==="
-while IFS=$'\t' read -r name pathPrefix r1suf r2suf mode group; do
+echo "=== Stage 02: bowtie2 (### FASTQ_MAPS samples only) ==="
+while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
-  [ "$mode" = "map" ] || continue
   echo "-- $name --"
   bash "$SCRIPTS/02_run_bowtie2.sh" "$name" "$THREADS" "$BOWTIE2_INDEX"
-done < "$PARSED/SAMPLES.tsv"
+done < "$PARSED/FASTQ_MAPS.tsv"
 echo
 
 if [ "$TARGET" = "mapping" ]; then echo "target=mapping reached, stopping."; exit 0; fi
 
 # =============================================================================
-# Stage 03/04: per map-mode sample
+# Stage 03/04: per ### FASTQ_MAPS sample
 # =============================================================================
 echo "=== Stage 03: analyzeTRIPMapping ==="
-while IFS=$'\t' read -r name pathPrefix r1suf r2suf mode group; do
+while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
-  [ "$mode" = "map" ] || continue
   echo "-- $name --"
   Rscript "$SCRIPTS/03_analyzeTRIPMapping.R" "$WORK/" "$WORK/02_mapping/" "$name" "$BARCODE_LEN"
-done < "$PARSED/SAMPLES.tsv"
+done < "$PARSED/FASTQ_MAPS.tsv"
 echo
 
 echo "=== Stage 04: filterMappings (+ TTAA if configured) ==="
-while IFS=$'\t' read -r name pathPrefix r1suf r2suf mode group; do
+while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
-  [ "$mode" = "map" ] || continue
   echo "-- $name --"
   if [ -n "$TTAA_BED" ]; then
     Rscript "$SCRIPTS/04_filterMappings_TTAA.R" "$WORK/" "$name" ttaaFilter "$TTAA_BED"
   else
     Rscript "$SCRIPTS/04_filterMappings_TTAA.R" "$WORK/" "$name"
   fi
-done < "$PARSED/SAMPLES.tsv"
+done < "$PARSED/FASTQ_MAPS.tsv"
 echo
 
 # =============================================================================
-# Stage 05: filterContaminants -- one run PER contamination batch (7th SAMPLES column).
+# Stage 05: filterContaminants -- one run PER contamination batch (### FASTQ_MAPS' 6th column).
 # Index-hopping contamination is a sequencing-run/flowcell artefact: samples that were
 # never multiplexed together can't contaminate each other, so real historical fileLists
 # (e.g. run3.txt/run5.txt, IntronTRIP_run2.txt/_run3.txt/_run4.txt) are scoped one per
 # physical run, not one global fileList across every map sample in a combined dataset.
-# Samples with no batch value fall into a single "default" batch (old/simple configs
-# without a 7th column keep working as one global run, same as before this change).
+# Samples with no batch value fall into a single "default" batch. The contamination group
+# for each sample is its mapName (### FASTQ_MAPS' 5th column) -- the two concepts are the same
+# thing here, so there's no separate "group" column.
 # =============================================================================
 echo "=== Stage 05: filterContaminants ==="
-BATCHES=$(awk -F'\t' '$5=="map"{print ($7==""?"default":$7)}' "$PARSED/SAMPLES.tsv" | sort -u)
+BATCHES=$(awk -F'\t' '{print ($6==""?"default":$6)}' "$PARSED/FASTQ_MAPS.tsv" | sort -u)
 if [ -z "$BATCHES" ]; then
-  echo "no map-mode samples, skipping"
+  echo "no map samples, skipping"
 else
   while read -r batch; do
     [ -z "$batch" ] && continue
     FILELIST="$WORK/.pipeline_fileList.${batch}.txt"
-    awk -F'\t' -v b="$batch" '$5=="map" && ($7==""?"default":$7)==b {print $1"\t"$6}' "$PARSED/SAMPLES.tsv" > "$FILELIST"
+    awk -F'\t' -v b="$batch" '($6==""?"default":$6)==b {print $1"\t"$5}' "$PARSED/FASTQ_MAPS.tsv" > "$FILELIST"
     echo "-- batch: $batch ($(wc -l < "$FILELIST") sample(s)) --"
     Rscript "$SCRIPTS/05_filterContaminants_uniform.R" "$WORK/" "$(basename "$FILELIST")" "$CONT_FACTOR"
   done <<< "$BATCHES"
@@ -170,20 +178,18 @@ fi
 echo
 
 # =============================================================================
-# Stage 06: get_genuine_barcodes -- one run per ### MAPS row (one-to-many manifest)
+# Stage 06: get_genuine_barcodes -- one run per distinct mapName in ### FASTQ_MAPS
+# (one-to-many: every sample sharing a mapName is combined into that construct's map)
 # =============================================================================
 echo "=== Stage 06: get_genuine_barcodes ==="
-while IFS=$'\t' read -r mapName sampleList; do
+MAPNAMES=$(awk -F'\t' '{print $5}' "$PARSED/FASTQ_MAPS.tsv" | sort -u)
+while read -r mapName; do
   [ -z "$mapName" ] && continue
   manifest="$WORK/${mapName}.txt"
-  : > "$manifest"
-  IFS=',' read -ra samples <<< "$sampleList"
-  for s in "${samples[@]}"; do
-    echo "${s}.retained_barcodes.bed" >> "$manifest"
-  done
-  echo "-- $mapName (${#samples[@]} sample(s)) --"
+  awk -F'\t' -v m="$mapName" '$5==m{print $1".retained_barcodes.bed"}' "$PARSED/FASTQ_MAPS.tsv" > "$manifest"
+  echo "-- $mapName ($(wc -l < "$manifest") sample(s)) --"
   Rscript "$SCRIPTS/06_get_genuine_barcodes.R" "$WORK/" "$(basename "$manifest")" "$BARCODE_LEN"
-done < "$PARSED/MAPS.tsv"
+done <<< "$MAPNAMES"
 echo
 
 if [ "$TARGET" = "genuine_barcodes" ]; then echo "target=genuine_barcodes reached, stopping."; exit 0; fi

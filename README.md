@@ -78,7 +78,7 @@ were actually seen there, and in what proportion? A position can have several ba
 "clusters" if some are just sequencing/PCR noise around the dominant one — the position is
 kept only if noise doesn't swamp the signal (`screenFunc`: drop positions where too many
 distinct barcodes each carry ≥1% of the max count). Two outputs, row-aligned to each other:
-`<name>.barcodes_poses.txt` (position + strand + length + `barcode:count,...` list +
+`<name>.barcodes_poses.txt` (position + strand + `barcode:count,...` list +
 aggregate counts) and `<name>.barcodes.bed` (same positions in BED6 for genome browsers).
 `barcodeLen` (4th arg, default 18 if omitted; `run_pipeline.sh` always passes `BARCODE_LEN`)
 controls the exact-length filter applied to barcodes before they're kept.
@@ -97,8 +97,8 @@ decreasing read support (`MaxCount`/`TopBarcode`, computed here from stage 03's 
 list); a position is dropped as redundant if a stronger position is within 10 bp, has
 ≥4x its read count, and its dominant barcode is within edit distance 3 (a near-duplicate,
 not a coincidence). Survivors are written out with the two new columns appended:
-`<name>.filtered_barcodes_poses.txt` (12 columns — the alignment-`Length` column from
-stage 03 plus `MaxCount`/`TopBarcode`) and `<name>.filtered_barcodes.bed`.
+`<name>.filtered_barcodes_poses.txt` (11 columns — stage 03's 9 plus `MaxCount`/`TopBarcode`)
+and `<name>.filtered_barcodes.bed`.
 
 Optional **TTAA filter** (piggyBac integrates exclusively at `TTAA` sites, so a position
 that isn't adjacent to a real genomic `TTAA` is very likely a mapping artefact): pass
@@ -113,7 +113,8 @@ Removes index-hopping contamination between mapping libraries that were sequence
 together. Takes a fileList (`sample_name<TAB>group`, one row per Map-mode sample) and, per
 `(Chr, Pos, Barcode)` key, compares each sample's read count against the *maximum* count
 seen for that same key in any *other* group on the same list. A key survives if its own
-count is within `contFactor` (default 30, i.e. ≥1/30th) of that cross-group max, or if the
+count is within `contFactor` (default 10 via the unified pipeline's `CONT_FACTOR`, i.e.
+≥1/10th) of that cross-group max, or if the
 key was never observed outside its own group at all (kept, since there's nothing to compare
 against). In the unified pipeline, `run_pipeline.sh` builds one fileList per
 `contamination_batch` value (see "Production configs" below) rather than one global list,
@@ -125,10 +126,10 @@ a real row-misalignment bug this fixes over the simpler upstream version).
 
 ### [06] get_genuine_barcodes — `scripts/06_get_genuine_barcodes.R <path> <mapName>.txt [barcodeLen]`
 
-Combines every replicate Map-mode sample belonging to one construct (the `### MAPS` list,
-e.g. `5ss_Map_rep1`+`5ss_Map_rep2` -> mapName `5ss`) into one genuine-barcode map for that
-construct. Reads each sample's `.retained_barcodes.bed`, re-aggregates by `(Chr, Start,
-End, Strand)` across ALL of them, and within each position collapses near-duplicate
+Combines every replicate Map-mode sample belonging to one construct (every `### FASTQ_MAPS`
+row sharing a `mapName`, e.g. `5ss_Map_rep1`+`5ss_Map_rep2` -> mapName `5ss`) into one
+genuine-barcode map for that construct. Reads each sample's `.retained_barcodes.bed`,
+re-aggregates by `(Chr, Start, End, Strand)` across ALL of them, and within each position collapses near-duplicate
 barcodes (edit distance ≤2) into their dominant variant, summing counts. A barcode/position
 pair is "genuine" if that barcode maps to exactly one position across the whole construct
 (`retained_barcodes_genuine.bed`); barcodes seen at more than one position are split off
@@ -183,17 +184,32 @@ bash ../run_pipeline.sh ../config/example_config.txt combined_counts
 This runs stages sequentially/locally; stages 01-02 are heavy on real libraries (tens of minutes,
 several GB) and should be wrapped in `bsub` for production use.
 
-See `config/example_config.txt` for the config format (`### GLOBAL` / `### SAMPLES` / `### MAPS` /
-`### COMBOS`). Verified end-to-end on real (subsampled) data from stages 01 through 07.
+See `config/example_config.txt` for the config format:
+
+- `### GLOBAL` — `key<TAB>value` pairs (`BARCODE_LEN`, `BOWTIE2_INDEX`, `CONT_FACTOR`, `TTAA_BED`,
+  `R1_PRIMER`, `R1_SUFFIX`, `R2_PRIMER`).
+- `### FASTQ_MAPS` — one row per Map-mode (DNA) fastq sample: `name, path_prefix, r1_suffix,
+  r2_suffix, mapName, contamination_batch(optional)`. `mapName` is both which construct's genuine
+  map this sample feeds into (stage 06) and its stage 05 contamination group — the two are the
+  same concept here.
+- `### FASTQ_NORM` — one row per Norm-mode fastq sample: `name, path_prefix, r1_suffix, r2_suffix`.
+- `### FASTQ_SAMPLES` — one row per Exp-mode fastq sample, same shape as `### FASTQ_NORM`; kept as
+  a separate section purely so it's clear at a glance which samples are Norm vs Exp.
+- `### COMBOS` — `mapName, normSample, expSample, effLength, reverseComplement,
+  oneMismatch(optional)`, referencing names from the three sections above.
+
+Verified end-to-end on real (subsampled) data from stages 01 through 07.
 
 ## Production configs
 
-- `config/single_combined_config.txt` — 4 constructs (5ss, CPA, 5ss_noP, CPA_noP), 68 samples,
-  48 combos. Derived verbatim from `single_combined/{5ss,CPA,5ss_noP,CPA_noP}.txt` + `combos.txt`.
-- `config/introntrip_combined_config.txt` — 8 constructs (A1, B1, C1, D1, E1, H1, B3-6, B3-9),
-  96 samples, 48 combos. Derived verbatim from `IntronTRIP_combined/{A1,...,B3-9}.txt` + `combos.txt`.
+- `config/single_combined_config.txt` — 4 constructs (5ss, CPA, 5ss_noP, CPA_noP): 12 Map + 8 Norm
+  + 48 Exp samples, 48 combos. Derived verbatim from `single_combined/{5ss,CPA,5ss_noP,CPA_noP}.txt`
+  + `combos.txt`.
+- `config/introntrip_combined_config.txt` — 8 constructs (A1, B1, C1, D1, E1, H1, B3-6, B3-9):
+  32 Map + 16 Norm + 48 Exp samples, 48 combos. Derived verbatim from
+  `IntronTRIP_combined/{A1,...,B3-9}.txt` + `combos.txt`.
 
-Both configs use the optional 7th `### SAMPLES` column, `contamination_batch`, so stage 05 runs
+Both configs use the optional 6th `### FASTQ_MAPS` column, `contamination_batch`, so stage 05 runs
 filterContaminants once per real sequencing run (matching the historical `run3.txt`/`run5.txt` /
 `IntronTRIP_run{2,3,4}.txt` fileLists) rather than pooling every map sample across runs into one
 comparison — index-hopping contamination can only happen between samples multiplexed together on
@@ -204,14 +220,17 @@ that stage 01's `count` mode is a parameterised template of.
 
 ## Resolved from the two repos' open discrepancies
 
-1. **Stage 03 `barcodes_poses.txt` column count.** Kept the alignment-`Length` column (10 cols from
-   stage 03, 12 after stage 04 adds `MaxCount`/`TopBarcode`) rather than dropping it, matching
-   `ArtyomTyukaev/trip-pipeline`'s version. Stage 05's `ncol` check and column-index references
-   (`Barcodes` col 9->10, `MaxCount` col 10->11) were updated to match — a plain "just check for 12"
-   fix alone would have silently read the wrong columns. Note: igoru's own current
-   `analyzeTRIPMapping_uniform.R` doesn't have this column at all (9 cols, no `Length`) — this was a
-   deliberate choice to follow Artyom's addition rather than igoru's leaner original, since the extra
-   column is purely informational and doesn't change any filtering logic.
+1. **Stage 03 `barcodes_poses.txt` column count.** ~~Kept the alignment-`Length` column (10 cols
+   from stage 03, 12 after stage 04 adds `MaxCount`/`TopBarcode`)~~ — **also retracted.** Length
+   was originally kept to match `ArtyomTyukaev/trip-pipeline`'s version, but it isn't just an extra
+   informational column: it was also added to stage 03's position-clustering `aggregate()` grouping
+   (`by = chrom, Start, strand, Length` instead of `chrom, Start, strand`), which changes what counts
+   as "the same position" — two reads at the same position+strand but different alignment length
+   became separate groups. igoru's own `analyzeTRIPMapping_uniform.R` never had this column, and
+   position+strand (no length, no barcode) is enough to define a group. Dropped entirely: stage 03 no
+   longer computes or groups by `Length`, and stage 05 is back to its original 9/11-column
+   expectation (`Barcodes` col 9, `MaxCount` col 10) matching `ArtyomTyukaev/trip-pipeline`'s
+   unmodified stage 05 too.
 2. **`analyzeTRIPMapping` minus-strand position.** ~~An earlier version of this repo used
    `Start = V3-1` instead of `V3` for `-`-strand alignments~~ — **retracted.** That change (and the
    matching `tt = Start+1` in stage 04) was verified only by internal self-consistency, not against

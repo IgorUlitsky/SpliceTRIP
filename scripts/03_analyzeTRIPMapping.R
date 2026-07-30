@@ -57,7 +57,6 @@ print(paste(nrow(tabStarts),"valid length alignments"))
 # production script (lidiag/R/scripts/analyzeTRIPMapping_uniform.R) and the original,
 # unmodified ArtyomTyukaev/trip-pipeline script -- both use plain V3, never V3-1.
 tabStarts$Start = ifelse(tabStarts$V6=="+",tabStarts$V2,tabStarts$V3)
-tabStarts$Length = tabStarts$V3-tabStarts$V2
 tabBarcodes$V1=substr(tabBarcodes$V1,2,1000)
 print("Merging by read name")
 tabStarts$Name = sapply(strsplit(as.character(tabStarts$V4), "/"), "[", 1)
@@ -97,10 +96,9 @@ for (chr in names(spChr))
 {
   if (sum(grepl("alt|random",chr))>0)
     next;
-  agg[[chr]] = aggregate(spChr[[chr]][,c("V2.x","V3.x")],by=spChr[[chr]][,c("V1.y","Start","V6","Length")],function(x){paste0(x,collapse=",")})
+  agg[[chr]] = aggregate(spChr[[chr]][,c("V2.x","V3.x")],by=spChr[[chr]][,c("V1.y","Start","V6")],function(x){paste0(x,collapse=",")})
 }
 
-head(agg$chr2)
 agg$chr2[agg$chr2$Start==32916313,]
 
 screenCount <- function(x){
@@ -171,17 +169,14 @@ for (chr in names(agg))
   agg[[chr]]=subset(agg[[chr]],agg[[chr]]$umiNames!="")
 }
 
-table(agg$chr2$Length)
-
 aggAll = do.call("rbind",agg)
 dim(aggAll)
 agg=aggAll
 
-
 print("Finished screenFunc")
 
 print("Buidling output")
-df= data.frame(Chrom=agg$V1.y,Start=agg$Start,End=agg$Start+1,Name=agg$umiNames,Score=1000,Strand=agg$V6,Length=agg$Length)
+df= data.frame(Chrom=agg$V1.y,Start=agg$Start,End=agg$Start+1,Name=agg$umiNames,Score=1000,Strand=agg$V6)
 df$counts = unlist(lapply(strsplit(df$Name,","),length))
 df$cleanCounts = 0
 

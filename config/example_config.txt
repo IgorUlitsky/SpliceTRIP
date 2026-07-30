@@ -10,38 +10,51 @@
 # key<TAB>value
 BARCODE_LEN	18
 BOWTIE2_INDEX	/home/projects/ulitsky/shared/data/human/sequence/bowtie2/hg38
-CONT_FACTOR	30
+CONT_FACTOR	10
 # Leave TTAA_BED blank (or comment the line out) to skip TTAA filtering entirely.
 TTAA_BED	/home/projects/ulitsky/igoru/data/human/hg38_ttaa.bed
 R1_PRIMER	AGAAGTTCAACTCGGTACCAGAGCCACC
 R1_SUFFIX	GGATC
 R2_PRIMER	GTACGTCACAATATGATTATCTTTCTAGGGTTAA
 
-### SAMPLES
-# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mode(map|count)<TAB>contamination_group(map mode only; "-" for count mode)<TAB>contamination_batch(optional, map mode only)
+### FASTQ_MAPS
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mapName<TAB>contamination_batch(optional)
 #
-# path_prefix is the path *including* the sample name, WITHOUT the R1/R2 suffix, e.g. for
-#   /home/projects/ulitsky/igoru/data/human/TRIP/run3/Map_CPA_noP_rep1_S93_R1_001.fastq.gz
-# path_prefix = /home/projects/ulitsky/igoru/data/human/TRIP/run3/Map_CPA_noP_rep1_S93
+# One row per Map-mode (DNA) fastq sample. path_prefix is the path *including* the sample
+# name, WITHOUT the R1/R2 suffix, e.g. for
+#   /home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_CPA_noP_pool1_rep2_S164_R1_001.fastq.gz
+# path_prefix = /home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_CPA_noP_pool1_rep2_S164
 # and r1_suffix/r2_suffix = _R1_001.fastq.gz / _R2_001.fastq.gz
 #
-# contamination_batch (7th column, optional): stage 05 runs filterContaminants once PER
-# DISTINCT batch value among map-mode samples, comparing only samples that share a batch
-# (real index-hopping contamination can only happen between samples multiplexed on the
-# same physical sequencing run, so this matches the real historical practice of one
-# fileList per run directory, e.g. run3.txt/run5.txt). Leave blank to put every map-mode
-# sample in a single implicit "default" batch (fine for a config that only spans one run).
-Map_5ss_noP_pool1_rep2_S166	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_5ss_noP_pool1_rep2_S166	_R1_001.fastq.gz	_R2_001.fastq.gz	map	5ss_noP	run5
-Map_CPA_noP_pool1_rep2_S164	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_CPA_noP_pool1_rep2_S164	_R1_001.fastq.gz	_R2_001.fastq.gz	map	CPA_noP	run5
-Norm_5ss_noP_rep2_S92	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Norm_5ss_noP_rep2_S92	_R1_001.fastq.gz	_R2_001.fastq.gz	count	-
-Exp_total_5ss_noP_pool2_rep2_S80	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Exp_total_5ss_noP_pool2_rep2_S80	_R1_001.fastq.gz	_R2_001.fastq.gz	count	-
+# mapName is which construct this sample's barcodes get combined into at stage 06 (every
+# row sharing a mapName is combined into one genuine-barcode map) -- it also doubles as the
+# stage 05 contamination group, since here the two are the same thing: contamination is
+# checked "does this barcode look real in construct X, or does it look like it leaked in
+# from some OTHER construct Y that was sequenced alongside it".
+#
+# contamination_batch (6th column, optional): stage 05 runs filterContaminants once PER
+# DISTINCT batch value, comparing only samples that share a batch (real index-hopping
+# contamination can only happen between samples multiplexed on the same physical
+# sequencing run, so this matches the real historical practice of one fileList per run
+# directory, e.g. run3.txt/run5.txt). Leave blank to put every sample in a single implicit
+# "default" batch (fine for a config that only spans one run).
+Map_5ss_noP_pool1_rep2_S166	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_5ss_noP_pool1_rep2_S166	_R1_001.fastq.gz	_R2_001.fastq.gz	5ss_noP	run5
+Map_CPA_noP_pool1_rep2_S164	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_CPA_noP_pool1_rep2_S164	_R1_001.fastq.gz	_R2_001.fastq.gz	CPA_noP	run5
 
-### MAPS
-# mapName<TAB>comma-separated list of map-mode SAMPLE names (from ### SAMPLES) to combine
-# into this one genuine-barcode map. One-to-many: a mapName is usually built from several
-# replicate Map_* samples.
-5ss_noP	Map_5ss_noP_pool1_rep2_S166
-CPA_noP	Map_CPA_noP_pool1_rep2_S164
+### FASTQ_NORM
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix
+#
+# One row per Norm-mode (barcode-tally-only) fastq sample. Same path_prefix/suffix
+# convention as ### FASTQ_MAPS. Referenced by name from ### COMBOS below.
+Norm_5ss_noP_rep2_S92	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Norm_5ss_noP_rep2_S92	_R1_001.fastq.gz	_R2_001.fastq.gz
+
+### FASTQ_SAMPLES
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix
+#
+# One row per Exp-mode (expression readout) fastq sample. Same shape as ### FASTQ_NORM,
+# just a different sample role -- kept as a separate section so it's clear at a glance
+# which samples are Norm vs Exp. Referenced by name from ### COMBOS below.
+Exp_total_5ss_noP_pool2_rep2_S80	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Exp_total_5ss_noP_pool2_rep2_S80	_R1_001.fastq.gz	_R2_001.fastq.gz
 
 ### COMBOS
 # mapName<TAB>normSample<TAB>expSample<TAB>effLength<TAB>reverseComplement(TRUE|FALSE)<TAB>oneMismatch(optional: yes to enable)

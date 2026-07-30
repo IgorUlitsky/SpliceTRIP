@@ -21,11 +21,7 @@ for (name in fileList$V1)
   print(name)
   tabs[[name]]=read.table(paste0(path,name,".filtered_barcodes_poses.txt"),sep="\t")
   beds[[name]]=read.table(paste0(path,name,".filtered_barcodes.bed"),sep="\t")
-  # 12, not 11: stage 03 in this pipeline keeps the alignment-Length column (col 7), which
-  # shifts every later stage-03 column right by one -- Barcodes is col 10 (not 9) and
-  # MaxCount/TopBarcode (added by stage 04) are cols 11/12 (not 10/11). See the column
-  # references below, updated to match.
-  if (ncol(tabs[[name]]) != 12) stop(paste(name, "has", ncol(tabs[[name]]), "columns, expected 12"))
+  if (ncol(tabs[[name]]) != 11) stop(paste(name, "has", ncol(tabs[[name]]), "columns, expected 11"))
 }
 
 allBarcodes = list()
@@ -36,9 +32,9 @@ for (group in unique(fileList$V2))
   for (name in fileList[fileList$V2==group,"V1"])
   {
     print(name)
-    agg=aggregate(tabs[[name]][,11],by=tabs[[name]][,c(1,2,10)],FUN=max)
-    allBarcodes[[group]][paste0(agg$V1,":",agg$V2,":",agg$V10)]=
-      apply(data.matrix(cbind(agg$x,allBarcodes[[group]][paste0(agg$V1,":",agg$V2,":",agg$V10)])),1,max,na.rm=T)
+    agg=aggregate(tabs[[name]][,10],by=tabs[[name]][,c(1,2,9)],FUN=max)
+    allBarcodes[[group]][paste0(agg$V1,":",agg$V2,":",agg$V9)]=
+      apply(data.matrix(cbind(agg$x,allBarcodes[[group]][paste0(agg$V1,":",agg$V2,":",agg$V9)])),1,max,na.rm=T)
   }
   print(paste(length(allBarcodes[[group]])," barcodes recoded"))
 }
@@ -66,7 +62,7 @@ for (name in fileList$V1)
     counts >= (allOtherBarcodes[match(keys, names(allOtherBarcodes))]/contFactor)
   }
 
-  myFilter = keepIfEnough(paste0(tabs[[name]]$V1,":",tabs[[name]]$V2,":",tabs[[name]]$V10), tabs[[name]][,11])
+  myFilter = keepIfEnough(paste0(tabs[[name]]$V1,":",tabs[[name]]$V2,":",tabs[[name]]$V9), tabs[[name]][,10])
   print(paste(format(length(myFilter),big.mark=","),"barcodes considered"))
   print(paste(format(sum(is.na(myFilter)),big.mark=",")," not observed outside group"))
   print(paste(format(sum(myFilter,na.rm=T),big.mark=","),"to be retained"))
