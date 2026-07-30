@@ -123,7 +123,10 @@ n_samples = length(niceNamesOrdered)
 sample_colors = rep(NA, n_samples)
 if (n_samples >= 1) sample_colors[1:min(2, n_samples)] = "gray70"
 if (n_samples >= 3) {
-  sample_colors[3:min(6, n_samples)] = rep(c("#9ecae1", "#08519c"), length.out = length(3:min(6, n_samples)))
+  # Pairs of 2, not alternating singles -- matches the original's hardcoded
+  # c("#9ecae1","#9ecae1","#08519c","#08519c") (positions 3-4 light, 5-6 dark), and the
+  # exp_list.txt convention of 2 consecutive violins per construct/category.
+  sample_colors[3:min(6, n_samples)] = rep(c("#9ecae1", "#08519c"), each = 2, length.out = length(3:min(6, n_samples)))
 }
 if (n_samples >= 7) {
   sample_colors[7:n_samples] = colorRampPalette(c("#fcbba1", "#99000d"))(length(7:n_samples))
