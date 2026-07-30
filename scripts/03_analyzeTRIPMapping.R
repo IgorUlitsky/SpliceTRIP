@@ -11,12 +11,16 @@ path_to_mapping = "/home/projects/ulitsky/lidiag/TRIP_data/run2/02_mapping/"
 name= "5ss_Map_rep1_S64"
 minAlignLen = 20
 maxAlignLen = 300
+barcodeLen = 18
 myArgs = commandArgs(trailingOnly = T)
 if (length(myArgs)>0)
 {
     path=myArgs[1]
     path_to_mapping=myArgs[2]
     name=myArgs[3]
+    # 4th arg is optional; barcodeLen keeps its default of 18 above when omitted (barcodes
+    # in this pipeline are 18nt for most constructs, but not all -- some use 16nt).
+    if (length(myArgs)>=4) barcodeLen = as.integer(myArgs[4])
 }
 barcodes = list()
 print(name)
@@ -60,8 +64,8 @@ length(intersect(tabStarts$Name,tabBarcodes$V1))
 merged=merge(tabBarcodes,tabStarts,by.x=1,by.y="Name")
 #table(nchar(merged$V3.x))
 
-# Keep only barcodes with 18 nt
-merged = subset(merged,nchar(merged$V3.x)==18)
+# Keep only barcodes of the expected length
+merged = subset(merged,nchar(merged$V3.x)==barcodeLen)
 
 # Remove unneeded columns
 merged$V1=NULL
@@ -180,7 +184,7 @@ df= data.frame(Chrom=agg$V1.y,Start=agg$Start,End=agg$Start+1,Name=agg$umiNames,
 df$counts = unlist(lapply(strsplit(df$Name,","),length))
 df$cleanCounts = 0
 
-df$Barcodes=unlist(lapply(lapply(strsplit(df$Name,","),substr,1,18),paste0,collapse=","))
+df$Barcodes=unlist(lapply(lapply(strsplit(df$Name,","),substr,1,barcodeLen),paste0,collapse=","))
 
 #sapply(strsplit(df[df$counts<5,"Name"],","),Rncc::RcppNumberConnectedComponents,2)
 #df$cleanCounts[df$counts<100] = unlist(lapply(strsplit(df[df$counts<100,"Name"],","),function(x){Rncc::RcppNumberConnectedComponents(x,2)}))

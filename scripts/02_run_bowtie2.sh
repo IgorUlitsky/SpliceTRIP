@@ -13,8 +13,7 @@
 #
 # Inputs   01_cutadapt/<name>.R1.fastq.gz , 01_cutadapt/<name>.R2.fastq.gz  (stage 01)
 # Outputs  <name>.bam              sorted alignments of both mates
-#          <name>.second.bam       read 2 only (flag 0x80 = second in pair)
-#          02_mapping/<name>.second_read.bed.gz    BED12, one line per R2 alignment
+#          02_mapping/<name>.second_read.bed.gz    BED12, one line per R2 alignment (flag 0x80 = second in pair)
 #
 # Only R2 is kept downstream: R1 is the constant reporter sequence (its barcode was
 # already captured in stage 01), R2 is the genomic DNA next to the integration site.
@@ -42,10 +41,9 @@ bowtie2 -p "$THREADS" -X 2000 -x "$INDEX" \
   | samtools sort -o "${NAME}.bam" -
 samtools index "${NAME}.bam"
 
-# 2. Keep only read 2 (the genomic mate).
-samtools view -f 0x80 -b "${NAME}.bam" > "${NAME}.second.bam"
-
-# 3. One BED12 line per R2 alignment; this is what stage 03 reads.
-bedtools bamtobed -bed12 -i "${NAME}.second.bam" | gzip > "02_mapping/${NAME}.second_read.bed.gz"
+# 2. Keep only read 2 (the genomic mate) and convert straight to BED12 -- this is what
+#    stage 03 reads. Piped directly rather than writing an intermediate <name>.second.bam:
+#    nothing downstream reads that file, only the BED.
+samtools view -f 0x80 -b "${NAME}.bam" | bedtools bamtobed -bed12 -i stdin | gzip > "02_mapping/${NAME}.second_read.bed.gz"
 
 echo "stage 02 done: $NAME"

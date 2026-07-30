@@ -128,7 +128,7 @@ while IFS=$'\t' read -r name pathPrefix r1suf r2suf mode group; do
   [ -z "$name" ] && continue
   [ "$mode" = "map" ] || continue
   echo "-- $name --"
-  Rscript "$SCRIPTS/03_analyzeTRIPMapping.R" "$WORK/" "$WORK/02_mapping/" "$name"
+  Rscript "$SCRIPTS/03_analyzeTRIPMapping.R" "$WORK/" "$WORK/02_mapping/" "$name" "$BARCODE_LEN"
 done < "$PARSED/SAMPLES.tsv"
 echo
 

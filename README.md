@@ -20,26 +20,34 @@ raw fastq (R1/R2)
  -> [07] normalizeTRIP (+ optional 1-nt mismatch tolerance) -> <expName>.combined_counts.txt  ★
 ```
 
-Background: a TRIP experiment transfects a pool of plasmids, each carrying a random ~18-nt
-barcode next to a piggyBac reporter, so barcodes land at essentially random genomic
-positions (`Map` libraries). The reporter's activity at each position is then read out by
-sequencing the barcode alone from RNA or normalized DNA (`Norm`/`Exp` libraries). Stages
-01-06 are all about pinning down, per barcode, *where* it landed and *whether that call can
-be trusted*; stage 07 is where a `Norm`/`Exp` pair actually gets turned into a per-position
-expression value.
+Background: a TRIP experiment transfects a pool of plasmids, each carrying a random
+16- or 18-nt barcode next to a piggyBac reporter, so barcodes land at essentially random
+genomic positions (`Map` libraries). The reporter's activity at each position is then read
+out by sequencing the barcode alone from RNA or normalized DNA (`Norm`/`Exp` libraries).
+Stages 01-06 are all about pinning down, per barcode, *where* it landed and *whether that
+call can be trusted*; stage 07 is where a `Norm`/`Exp` pair actually gets turned into a
+per-position expression value.
+
+Barcode length is a real per-construct choice, not a fixed constant: `BARCODE_LEN` in
+`### GLOBAL` (default 18) flows through to stage 01 (`--cut`/offset math), stage 03 (barcode
+length filter), and stage 06 (barcode length filter) — set it to 16 for constructs that use
+a 16-nt barcode. `effLength` in `### COMBOS` (stage 07) is a separate, per-combo setting for
+how many of those bases the Norm/Exp readout actually uses, and can differ from
+`BARCODE_LEN` itself.
 
 ### [01] cutadapt — `scripts/01_run_cutadapt.sh {map|count} <name>`
 
-Extracts the UMI + 18-nt barcode from R1's header into the read name (via cutadapt's
-`--rename`) and trims the read-through/adapter sequence, so every later stage works off a
-clean, position-tagged FASTQ instead of raw sequence.
+Extracts the UMI + barcode from R1's header into the read name (via cutadapt's `--rename`)
+and trims the read-through/adapter sequence, so every later stage works off a clean,
+position-tagged FASTQ instead of raw sequence.
 
 - **`map` mode** (Map libraries — DNA, paired-end, R2 is genomic): two cutadapt passes.
-  Pass 1 finds the R1 primer + 18 N's (barcode) + junction sequence with `--cut 4` first
-  (strips the 4-nt UMI) and anchors R2 to the ITR primer that ends in the piggyBac `TTAA`
-  duplication signature. Pass 2 trims any read-through into the construct from both mates.
-  Output: `01_cutadapt/<name>.R{1,2}.fastq.gz` (R1 header carries `umi=`/`barcode=`) plus
-  `<name>.barcodes.txt.gz` (read_name, UMI, barcode — one exactly-18-nt barcode per read).
+  Pass 1 finds the R1 primer + `BARCODE_LEN` N's (barcode) + junction sequence with
+  `--cut 4` first (strips the 4-nt UMI) and anchors R2 to the ITR primer that ends in the
+  piggyBac `TTAA` duplication signature. Pass 2 trims any read-through into the construct
+  from both mates. Output: `01_cutadapt/<name>.R{1,2}.fastq.gz` (R1 header carries
+  `umi=`/`barcode=`) plus `<name>.barcodes.txt.gz` (read_name, UMI, barcode — one
+  exactly-`BARCODE_LEN`-nt barcode per read).
 - **`count` mode** (Norm/Exp libraries — barcode readout only, R2 unused downstream): a
   single **anchored** (`-g "^..."`) cutadapt pass, then an awk one-liner tallies
   `barcode -> read_count` straight from the renamed FASTQ header, sorted by count
@@ -52,13 +60,15 @@ clean, position-tagged FASTQ instead of raw sequence.
 Aligns both mates end-to-end to hg38 (`bowtie2 -X 2000`), then keeps only read 2 (flag
 `0x80`) — R1 is the constant reporter sequence whose barcode was already captured in stage
 01, R2 is the genomic DNA flanking the integration site. Converts R2's alignments to one
-BED12 line each. Output: `<name>.bam` (both mates, sorted+indexed), `<name>.second.bam`
-(R2 only), `02_mapping/<name>.second_read.bed.gz` (what stage 03 reads). This script is a
+BED12 line each, piping `samtools view -f 0x80` straight into `bedtools bamtobed -i stdin`
+rather than writing an intermediate read-2-only BAM (nothing downstream reads a BAM, only
+the BED). Output: `<name>.bam` (both mates, sorted+indexed) and
+`02_mapping/<name>.second_read.bed.gz` (what stage 03 reads). This script is a
 reconstruction — no per-sample script for this step survives in the run directories, so the
 alignment was historically run ad hoc; treat the bowtie2 flags as authoritative, the
 packaging as new.
 
-### [03] analyzeTRIPMapping — `scripts/03_analyzeTRIPMapping.R <path> <path_to_mapping> <name>`
+### [03] analyzeTRIPMapping — `scripts/03_analyzeTRIPMapping.R <path> <path_to_mapping> <name> [barcodeLen]`
 
 The core per-read-to-per-position collapse. Joins stage 01's barcode table to stage 02's
 alignment BED by read name, drops alignments outside a sane length range (20-300 bp) and
@@ -70,6 +80,8 @@ kept only if noise doesn't swamp the signal (`screenFunc`: drop positions where 
 distinct barcodes each carry ≥1% of the max count). Two outputs, row-aligned to each other:
 `<name>.barcodes_poses.txt` (position + strand + length + `barcode:count,...` list +
 aggregate counts) and `<name>.barcodes.bed` (same positions in BED6 for genome browsers).
+`barcodeLen` (4th arg, default 18 if omitted; `run_pipeline.sh` always passes `BARCODE_LEN`)
+controls the exact-length filter applied to barcodes before they're kept.
 
 Minus-strand position uses the `Start = V3-1` convention (BED end is exclusive/half-open,
 so the true last-aligned base is `V3-1`, not `V3`) — this is a deliberate, empirically
@@ -110,7 +122,7 @@ sequencing run. Output: `<name>.retained_barcodes_counts.txt` and
 field can pack several barcode variants at one position — see the script's own comments for
 a real row-misalignment bug this fixes over the simpler upstream version).
 
-### [06] get_genuine_barcodes — `scripts/06_get_genuine_barcodes.R <path> <mapName>.txt <barcodeLen>`
+### [06] get_genuine_barcodes — `scripts/06_get_genuine_barcodes.R <path> <mapName>.txt [barcodeLen]`
 
 Combines every replicate Map-mode sample belonging to one construct (the `### MAPS` list,
 e.g. `5ss_Map_rep1`+`5ss_Map_rep2` -> mapName `5ss`) into one genuine-barcode map for that
@@ -123,13 +135,23 @@ separately (`retained_barcodes_multimappers.bed`) rather than being silently kep
 dropped. `_forUCSC` variants are the same tables with scores capped at 1000 for genome
 browser display. This is what stage 07 reads as its map of barcode -> genomic position.
 
+This is igoru's `~/R/trip/IntronTrip/get_genuine_barcodes_IntronTRIP.R`, not the older
+`get_genuine_barcodes_v2.R` this repo started with — same grouping/merge logic (including
+its documented quirk where a barcode merged into an already-dropped one can lose its count;
+kept intentionally, not changed here), but the per-position dedup is rewritten with
+`tapply`/vectors instead of `aggregate()`-on-a-dataframe-per-position, which mattered at
+real scale (~140k positions, profiled bottleneck). It also guards the optional 3rd
+(`barcodeLen`) argument — the old version's unconditional `as.integer(myArgs[3])` silently
+became `NA` when called with only 2 args, which silently zeroed out every position's output
+with no error at all.
+
 ### [07] normalizeTRIP (+ optional 1-nt mismatch tolerance) — `scripts/07_normalizeTRIP_MM.R <path> <path_norm> <mapName>.txt <normSample> <expSample> <effLength> <reverseComplement> [oneMismatch]`
 
 The actual expression readout, run once per `### COMBOS` row. Loads the construct's genuine
 barcode map (stage 06), the Norm library's barcode counts (stage 01 `count` mode, floored
 at `minNormReads = 2`), and the Exp library's barcode counts, all truncated/aggregated to
-the first `effLength` bases (some readouts use a shorter effective barcode than the full 18
-nt). Keeps only barcodes that (a) map to exactly one genomic position and (b) are present
+the first `effLength` bases (some readouts use a shorter effective barcode than the
+construct's full `BARCODE_LEN`). Keeps only barcodes that (a) map to exactly one genomic position and (b) are present
 in both Norm and Exp, then writes one row per barcode: raw `norm`/`exp` counts plus the
 mapped `Chr`/`Pos`/`Strand`. `reverseComplement` (`TRUE`/`FALSE`, per-combo in the config)
 handles Exp libraries sequenced from the opposite strand of the barcode (e.g. some RNA
@@ -198,6 +220,6 @@ that stage 01's `count` mode is a parameterised template of.
   additionally fixes a real `.filtered_barcodes.bed` row-misalignment bug that Artyom's simpler copy
   doesn't have (see the script's own comments).
 - Stage 05 now takes an optional 3rd CLI arg for `contFactor` so the config can drive it.
-- Stage 06 still uses the older, non-vectorized `get_genuine_barcodes_v2.R` algorithm (matching
-  Artyom's choice) rather than the more-refactored `get_genuine_barcodes_IntronTRIP.R` variant — a
-  candidate follow-up if stage 06 becomes a bottleneck at real scale.
+- Stage 06 uses igoru's `get_genuine_barcodes_IntronTRIP.R` (vectorized, faster at real scale,
+  with a fixed argument-parsing bug) rather than Artyom's `get_genuine_barcodes_v2.R` copy — see
+  its README section above.
