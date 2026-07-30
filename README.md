@@ -369,12 +369,62 @@ embedded per-run creation timestamp) against the original script on real `single
 data. No hardcoded external paths to extract — like stages 11-13, it only reads other pipeline
 stages' own output.
 
+### [16] compareReplicatesAndMultiIntegrations — `scripts/16_compareReplicatesAndMultiIntegrations_uniform.R <path> <mapName1,mapName2,...> <expListFile> <outFile.pdf>`
+
+Per-construct QC, whole-list call like stage 11 (reuses the same `<mapName><TAB><expName>`
+`expListFile` format). Asks: how well do independent barcodes that land in the same gene, the
+same intron, or the exact same genomic position agree in expression, compared to random
+barcode pairs? Barcodes-per-gene/intron/position histograms, then expression-distance boxplots
+(random pairs vs. same gene-different-intron vs. same intron vs. same position, each with
+Wilcoxon p-values) — near-duplicate barcodes at one position are first collapsed by Hamming
+distance (<3), since those are more likely PCR/sequencing error variants than independent
+integrations. Also an UpSet plot of which barcodes are expressed (`exp.log10>0`) in which
+library.
+
+This is igoru's `~/R/trip/compareReplicatesAndMultiIntegrations_uniform.R` verbatim, no logic
+changes. Same hand-curated-`expListFile` caveat as stage 11 — see
+`examples/exp_lists/IntronTRIP_combined.expression.exp_list.txt` for a real one (one `Total`
+readout per rep per construct, not every `### COMBOS` expName).
+
+### [17] meta_bigwig_overlap — `scripts/17_meta_bigwig_overlap.sh <mapTypesFile> <histoneBwDir> <speckleDir> <chromSizes> <chainHg38ToHg19>`
+
+Optional (only runs if `histone_marks.txt` and `speckle_names.txt` — real, curated per-dataset
+track lists, e.g. `single_combined/histone_marks.txt` — are both present in the working
+directory; skipped entirely otherwise). For each `### FASTQ_MAPS` construct: `bedtools slop -b 50`
+around every genuine barcode position (stage 06), `bigWigAverageOverBed` against every ENCODE
+K562 histone-mark/factor bigWig (hg38, column 5/`mean0` of the raw output is what's kept),
+`liftOver` the same regions to hg19, then `bigWigAverageOverBed` again against every
+speckle/TSA-seq bigWig (hg19-native tracks). Combines each track's per-barcode column into one
+matrix per construct (`meta/<mapName>.combined_{histone,speckle}.txt`).
+
+Sequential port of the real `meta_histone_all.csh`/`meta_histone_summary.sh`/
+`meta_speckle_all.csh`/`meta_speckle_summary.sh` (`single_combined/*.csh`/`*.sh`) — same
+commands, run one after another instead of each `bigWigAverageOverBed` call being its own async
+`bsub` job with LSF job-ID dependency tracking. Verified: the "combine into a matrix" step
+reproduces the real `5ss.combined_histone.txt`/`5ss.combined_speckle.txt` byte-for-byte from the
+real, already-computed `.tab.gz` files. Heavy at production scale (many tracks × many
+constructs) — wrap in `bsub` yourself for a real run rather than running on a login node, same
+as stages 01-02.
+
+### [18] plotMetageneCorrelations — `scripts/18_plotMetageneCorrelations_uniform.R <path> <corType> <mapTypesList> <expFile> <outName>`
+
+Correlates each barcode's summed expression (`log10(1+exp)`, no norm — a separate, simpler
+readout than `### COMBOS`/stage 07, driven by its own `<mapType><TAB><exp>` `expFile`, reused
+here from stage 11/16's auto-generated one) against every histone-mark and speckle/TSA-seq
+track's stage 17 metagene signal. Per-construct bar charts (one per track type) plus a combined
+heatmap across every construct and every track, `corType` correlation (`pearson`/`spearman`),
+p<0.05 cells annotated with their p-value, color scale symmetric around 0 and shared between
+the histone and speckle heatmaps.
+
+This is igoru's `~/R/trip/plotMetageneCorrelations_singleCombined.R` verbatim, no logic changes.
+
 ## Data flow
 
 How each stage's output feeds the next, as a visual recap of the stage-by-stage descriptions
 above. `combined_counts` (default target) is stages 01-07 (+ 14 if `### SPLICED_UNSPLICED` has
-rows); `annotated` adds 08-13/15. The DpnII distance analysis is a side-branch off stage 06,
-independent of everything else.
+rows); `annotated` adds 08-13/15/16, plus 17-18 if `histone_marks.txt`/`speckle_names.txt` are
+present. The DpnII distance analysis is a side-branch off stage 06, independent of everything
+else.
 
 ```mermaid
 flowchart TD
@@ -411,11 +461,21 @@ flowchart TD
         S12["12 annotateTRIP_positions<br/>(per construct)"]
         S13["13 annotateTRIPGeneBodies<br/>(per construct)"]
         S15["15 gc_content_report<br/>(per construct)"]
+        S16["16 compareReplicatesAndMultiIntegrations<br/>(per construct)"]
     end
     S07 --> S11
     S07 --> S12
     S07 --> S13
     S07 --> S15
+    S07 --> S16
+
+    subgraph META["metagene bigWig overlap (optional, needs histone_marks.txt/speckle_names.txt)"]
+        S17["17 meta_bigwig_overlap<br/>(bedtools slop + bigWigAverageOverBed + liftOver)"]
+        S18["18 plotMetageneCorrelations"]
+        S17 -->|"meta/mapName.combined_{histone,speckle}.txt"| S18
+    end
+    S06 --> S17
+    S07 --> S18
 
     S06 -->|"mapName.txt.retained_barcodes_genuine.dnpII_dists.txt"| DPNII["plot_dpnII_distances.R<br/>(+ hg38_ttaa.bed, hg38_dpnii.bed, hg38.gaps.bed.gz)"]
     DPNII -->|"dpnII_distances.pdf"| DPNIIOUT(["real vs random-TTAA<br/>DpnII-distance comparison"])

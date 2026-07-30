@@ -49,6 +49,8 @@ MANE_EXPRESSION	/home/projects/ulitsky/igoru/data/human/ENCODE/K562/K562_1_MANER
 CHROMHMM_BED	/home/projects/ulitsky/shared/data/human/K562_ChromHMM_Kellis_ENCFF319VXX.bed.gz
 SPIN_BED	/home/projects/ulitsky/igoru/R/trip/data/K562_SPIN_25kb_hg38.bed
 SPECKLE_DIR	/home/projects/ulitsky/shared/data/human/speckles/
+HISTONE_BW_DIR	/home/projects/ulitsky/shared/data/human/ENCODE/K562
+HG38_TO_HG19_CHAIN	/home/projects/ulitsky/igoru/data/combinedTables/chains/hg38ToHg19.over.chain
 
 ### FASTQ_MAPS
 # name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mapName<TAB>contamination_batch
