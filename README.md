@@ -297,7 +297,12 @@ See `config/example_config.txt` for the config format:
   all shared cluster reference resources — safe to leave unset if you only need
   `combined_counts`): `MANE_BED`, `MANE_INTRONS_BED`, `GENCODE_NONCODING_BED`,
   `REPEATS_BED`, `CHROM_SIZES`, `GENOME_FASTA`, `TRANS2GENE`, `MANE_EXPRESSION`,
-  `CHROMHMM_BED`, `SPIN_BED`.
+  `CHROMHMM_BED`, `SPIN_BED`. Three of the smaller ones (`MANE_BED`, `CHROMHMM_BED`,
+  `SPIN_BED`) are bundled directly in `reference/` for anyone without access to the
+  Weizmann cluster's shared storage — see `reference/README.md`. The rest
+  (`GENOME_FASTA`, `CHROM_SIZES`, `MANE_INTRONS_BED`, `GENCODE_NONCODING_BED`,
+  `REPEATS_BED`, `TRANS2GENE`, `MANE_EXPRESSION`) are too large or too
+  environment-specific to bundle; point them at your own copies.
 - `### FASTQ_MAPS` — one row per Map-mode (DNA) fastq sample: `name, path_prefix, r1_suffix,
   r2_suffix, mapName, contamination_batch(optional)`. `mapName` is both which construct's genuine
   map this sample feeds into (stage 06) and its stage 05 contamination group — the two are the
