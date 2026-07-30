@@ -2,10 +2,10 @@
 # =============================================================================
 # TRIP unified pipeline — orchestrator
 # =============================================================================
-# Reads a config text file (see config/example_config.txt) and runs stages 01-10
+# Reads a config text file (see config/example_config.txt) and runs stages 01-11
 # (cutadapt -> bowtie2 -> analyzeTRIPMapping -> filterMappings[+TTAA] ->
 # filterContaminants -> get_genuine_barcodes -> normalizeTRIP[+oneMismatch] ->
-# make_tracks -> gc_content -> table_annotation) in order.
+# make_tracks -> gc_content -> table_annotation -> comparePairwiseSharedPositions) in order.
 #
 # Usage
 #   bash run_pipeline.sh <config.txt> [target] [threads]
@@ -15,9 +15,10 @@
 #     mapping           01-02 (Map-mode samples only)
 #     genuine_barcodes  01-06
 #     combined_counts   01-07 (everything needed for combined_counts.txt) ★ pipeline's main deliverable
-#     annotated         01-10 (adds per-construct annotated_tables.txt -- MANE/gencode/
-#                        repeats/ChromHMM/SPIN/GC -- independent of stage 07, runs
-#                        alongside it)
+#     annotated         01-11 (adds per-construct annotated_tables.txt -- MANE/gencode/
+#                        repeats/ChromHMM/SPIN/GC -- and a pairwise shared-position
+#                        comparison across every ### FASTQ_MAPS construct; independent of
+#                        stage 07, runs alongside it)
 #
 # Every stage writes into the CURRENT directory (matching each stage script's own
 # convention of writing next to its inputs) -- run this from wherever you want the
@@ -264,6 +265,24 @@ echo
 echo "=== Stage 10: table_annotation (annotated_tables.txt) ==="
 Rscript "$SCRIPTS/10_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
   "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$TRANS2GENE" "$MANE_EXPRESSION" "$CHROMHMM_BED" "$SPIN_BED"
+echo
+
+# =============================================================================
+# Stage 11: comparePairwiseSharedPositions -- every pair of ### FASTQ_MAPS mapNames (not
+# every ### COMBOS row), so this needs its own name-list and its own <mapName><TAB>
+# <expName> exp-list, built from ### COMBOS' mapName+expSample columns (1st+3rd). Real
+# production expListFiles are often hand-curated and NOT 1:1 with ### COMBOS (e.g. a
+# separate splicing-ratio pipeline's outputs pooled in) -- see examples/exp_lists/ for
+# real ones to use instead of this auto-generated one, by passing your own expListFile as
+# a 3rd arg to this script directly rather than going through run_pipeline.sh.
+# =============================================================================
+echo "=== Stage 11: comparePairwiseSharedPositions ==="
+mkdir -p "$WORK/plots"
+EXPLIST="$WORK/.pipeline_exp_list.txt"
+awk -F'\t' '{print $1"\t"$3}' "$PARSED/COMBOS.tsv" > "$EXPLIST"
+ALLMAPNAMES=$(echo "$MAPNAMES" | paste -sd,)
+Rscript "$SCRIPTS/11_comparePairwiseSharedPositions_uniform.R" "$WORK/" "$ALLMAPNAMES" \
+  "$(basename "$EXPLIST")" "plots/pairwise_shared_positions.pdf"
 
 echo
-echo "=== done: <mapName>.txt.annotated_tables.txt written for each construct ==="
+echo "=== done: <mapName>.txt.annotated_tables.txt written for each construct; pairwise_shared_positions.pdf written ==="

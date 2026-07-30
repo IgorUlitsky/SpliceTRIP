@@ -247,6 +247,32 @@ a default when omitted, same length-guarded pattern as stage 06's `barcodeLen`/
 original, removed here as dead code rather than ported). Verified byte-for-byte identical
 output against the original script on a real construct.
 
+### [11] comparePairwiseSharedPositions — `scripts/11_comparePairwiseSharedPositions_uniform.R <path> <mapName1,mapName2,...> <expListFile> <outFile.pdf> [titleExtra]`
+
+For every **pair** of mapping libraries (every distinct `### FASTQ_MAPS` `mapName`, not
+every `### COMBOS` row — a QC/comparison step across constructs, not a per-readout one):
+how many genomic positions are shared between the two (both have ≥1 barcode mapped
+there), split into positions that also share an *identical* barcode (much stronger
+evidence of a true shared integration than merely landing on the same position
+independently) vs. ones that don't — plus, for the shared positions, the Spearman
+correlation of the two libraries' per-position average `exp.log10`/`map`/`norm`, split the
+same way. `expListFile` is `<mapName><TAB><expName>` (one row per construct × expression
+library, pooled into that construct's per-position average) — see `examples/exp_lists/`
+for real ones (including two from a separate splicing-ratio pipeline, which this script
+auto-detects and handles correctly — see its own comments). Output: 4 `ComplexHeatmap`s
+(shared-position counts; Spearman rho for `exp.log10`/`map`/`norm` each) in one PDF, plus
+one `<outFile>.shared_positions.<mapA>_vs_<mapB>.txt` per unordered construct pair listing
+every shared position, its shared barcode(s) if any, and both constructs' per-position
+average values.
+
+No hardcoded paths in this script (unlike 08-10) — reads only stage 07/10's own output.
+`run_pipeline.sh`'s `annotated` target auto-generates a standard `expListFile` from
+`### COMBOS`' `mapName`+`expSample` columns; real production `expListFile`s are often
+hand-curated and not 1:1 with `### COMBOS` (see `examples/exp_lists/`), so pass your own
+directly to the script instead of going through the orchestrator when that's the case.
+Verified: the ported script is byte-identical (beyond an added doc header) to the version
+already validated on real `single_combined`/`SON_combined`/`IntronTRIP_combined` data.
+
 ## Running
 
 ```bash
@@ -259,9 +285,10 @@ bash ../run_pipeline.sh ../config/example_config.txt combined_counts
 
 `target` (2nd arg) controls how far to run: `cutadapt` | `mapping` | `genuine_barcodes` |
 `combined_counts` (default — stages 01-07, the pipeline's main deliverable) | `annotated`
-(stages 01-10, adds per-construct `annotated_tables.txt`). Everything is written into the
-current directory. This runs stages sequentially/locally; stages 01-02 are heavy on real
-libraries (tens of minutes, several GB) and should be wrapped in `bsub` for production use.
+(stages 01-11, adds per-construct `annotated_tables.txt` and a pairwise shared-position
+comparison across constructs). Everything is written into the current directory. This runs
+stages sequentially/locally; stages 01-02 are heavy on real libraries (tens of minutes,
+several GB) and should be wrapped in `bsub` for production use.
 
 See `config/example_config.txt` for the config format:
 

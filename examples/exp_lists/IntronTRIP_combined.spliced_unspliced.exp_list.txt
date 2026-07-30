@@ -1,0 +1,16 @@
+A1	A1_1.spliced_unspliced
+A1	A1_2.spliced_unspliced
+B1	B1_1.spliced_unspliced
+B1	B1_2.spliced_unspliced
+B3-6	B3-6_1.spliced_unspliced
+B3-6	B3-6_2.spliced_unspliced
+B3-9	B3-9_1.spliced_unspliced
+B3-9	B3-9_2.spliced_unspliced
+C1	C1_1.spliced_unspliced
+C1	C1_2.spliced_unspliced
+D1	D1_1.spliced_unspliced
+D1	D1_2.spliced_unspliced
+E1	E1_1.spliced_unspliced
+E1	E1_2.spliced_unspliced
+H1	H1_1.spliced_unspliced
+H1	H1_2.spliced_unspliced

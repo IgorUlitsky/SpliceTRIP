@@ -1,0 +1,8 @@
+5ss	5ss_Expression_rep1_S56
+5ss	5ss_Expression_rep2_S57
+CPA	CPA_Expression_rep2_S54
+CPA	CPA_Expression_rep3_S55
+5ss_noP	Exp_5ss_noP_rep1_S99
+5ss_noP	Exp_5ss_noP_rep2_S100
+CPA_noP	Exp_CPA_noP_rep1_S97
+CPA_noP	Exp_CPA_noP_rep2_S98
