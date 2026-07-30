@@ -60,14 +60,24 @@ Map_5ss_noP_pool1_rep2_S166	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Ma
 Map_CPA_noP_pool1_rep2_S164	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_CPA_noP_pool1_rep2_S164	_R1_001.fastq.gz	_R2_001.fastq.gz	CPA_noP	run5
 
 ### FASTQ_NORM
-# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>r1_adapter(optional)<TAB>r2_adapter(optional)
 #
 # One row per Norm-mode (barcode-tally-only) fastq sample. Same path_prefix/suffix
 # convention as ### FASTQ_MAPS. Referenced by name from ### COMBOS below.
+#
+# r1_adapter/r2_adapter (5th/6th columns, both optional, blank = stage 01's default):
+# some Norm/Exp libraries were sequenced with a construct-specific adapter instead of the
+# standard one -- confirmed real usage, not hypothetical (e.g. every IntronTRIP_combined/
+# SON_combined Spliced/Unspliced readout additionally trims a construct-specific 5' adapter
+# off R2; see config/introntrip_combined_config.txt and config/son_combined_config.txt for
+# real populated examples, and their own header comments for where the values come from).
+# Bare sequence only (no cutadapt `g:`/`G:` prefix, no leading `^` -- stage 01 adds the
+# anchor itself); r1_adapter, if set, must still contain the barcode's run of N's, same as
+# the default it replaces.
 Norm_5ss_noP_rep2_S92	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Norm_5ss_noP_rep2_S92	_R1_001.fastq.gz	_R2_001.fastq.gz
 
 ### FASTQ_SAMPLES
-# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>r1_adapter(optional)<TAB>r2_adapter(optional)
 #
 # One row per Exp-mode (expression readout) fastq sample. Same shape as ### FASTQ_NORM,
 # just a different sample role -- kept as a separate section so it's clear at a glance

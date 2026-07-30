@@ -138,13 +138,19 @@ while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
 done < "$PARSED/FASTQ_MAPS.tsv"
 
 for section in FASTQ_NORM FASTQ_SAMPLES; do
-  while IFS=$'\t' read -r name pathPrefix r1suf r2suf r1Adapter r2Adapter; do
+  while IFS=$'\t' read -r name pathPrefix r1suf r2suf; do
     [ -z "$name" ] && continue
     echo "-- $name (mode=count) --"
     stageFastq "$name" "$pathPrefix" "$r1suf" "$r2suf"
     # Optional per-row 5th/6th columns: R1/R2 adapter override (blank = stage 01's
-    # default). Export fresh each iteration so a row without an override doesn't
-    # inherit the previous row's value.
+    # default). Looked up via awk rather than folded into the `read` above -- bash's
+    # `read` collapses a genuinely empty field between two tabs regardless of IFS
+    # (tab is always "IFS whitespace"), which would silently shift r2Adapter's value
+    # into r1Adapter whenever r1Adapter is blank and r2Adapter isn't -- exactly the
+    # common case here (e.g. every IntronTRIP_combined/SON_combined Spliced/Unspliced
+    # row). awk's field splitting doesn't have this collapsing behavior.
+    r1Adapter=$(awk -F'\t' -v n="$name" '$1==n{print $5}' "$PARSED/$section.tsv")
+    r2Adapter=$(awk -F'\t' -v n="$name" '$1==n{print $6}' "$PARSED/$section.tsv")
     R1_ADAPTER="$r1Adapter" R2_ADAPTER="$r2Adapter" bash "$SCRIPTS/01_run_cutadapt.sh" count "$name" "$THREADS"
   done < "$PARSED/$section.tsv"
 done

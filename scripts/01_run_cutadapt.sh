@@ -23,6 +23,19 @@
 #   export R1_PRIMER=ACATGTCCGTAAATGCTTTCTGCCATTCCTTGAAGTTCAACTCGGTACCAGAGCCACC
 # The barcode offset used when parsing the read header is derived from the primer
 # length, so it follows automatically (28 -> 29, 58 -> 59).
+#
+# Per-sample adapter override (count mode only) -- some Norm/Exp libraries (confirmed:
+# real per-sample bsub .csh scripts for IntronTRIP/SON spliced+unspliced readouts, e.g.
+# shared/data/human/TRIP/IntronTRIP_run2/TRIP_RNA_spliced_B3-6_1-1_S53.csh) trim a
+# construct-specific 5' adapter off R2 in addition to the standard R1 barcode adapter,
+# rather than leaving R2 untouched. Export R1_ADAPTER/R2_ADAPTER (bare sequence, no `^`,
+# no cutadapt `g:`/`G:` prefix -- this script adds the anchor) before calling count mode
+# to use them instead of the default R1_PRIMER+barcode-N's+R1_SUFFIX / no-R2-trim-at-all.
+# run_pipeline.sh sets these per-row from ### FASTQ_NORM/### FASTQ_SAMPLES' optional 5th/
+# 6th columns. R1_ADAPTER, if set, must still contain the barcode's run of N's (same
+# convention as the default) -- the barcode-extraction offset is derived from whatever
+# precedes the first N, so this works whether or not the adapter prefix length matches
+# the default R1_PRIMER's.
 # =============================================================================
 set -euo pipefail
 
@@ -73,25 +86,44 @@ map)
   ;;
 
 count)
-  # Norm / Exp libraries: single anchored pass, R2 is not used downstream. -g is ANCHORED
-  # (leading ^) per igoru's explicit direction -- confirmed against real actually-submitted
-  # bsub .csh job scripts (e.g. run2/5ss_Norm_rep1_S60.csh, run2/5ss_Expression_rep1_S56.csh,
+  # Norm / Exp libraries: single anchored pass, R2 is not used downstream (unless
+  # R2_ADAPTER is set -- see below). -g is ANCHORED (leading ^) per igoru's explicit
+  # direction -- confirmed against real actually-submitted bsub .csh job scripts (e.g.
+  # run2/5ss_Norm_rep1_S60.csh, run2/5ss_Expression_rep1_S56.csh,
   # IntronTRIP_run2/TRIP_RNA_spliced_B3-6_1-1_S53.csh), which anchor -g for Norm/Exp
   # libraries. Note the generic cut_norm.csh/count_exp.csh batch-loop templates in some run
   # directories use an unanchored form instead -- real historical usage is inconsistent
   # across runs, but the per-sample bsub scripts (what was actually executed) anchor it, and
   # that's the convention to follow here.
-  cutadapt -j "$THREADS" -n 1 --cut 4 \
-    -g "^${R1_PRIMER}${NS}${R1_SUFFIX}" \
-    --rename='{id} umi={cut_prefix} adapter={adapter_name} barcode={match_sequence}' \
-    -o "01_cutadapt/${NAME}.R1.fastq.gz" -p "01_cutadapt/${NAME}.R2.fastq.gz" \
-    "${NAME}_R1_001.fastq.gz" "${NAME}_R2_001.fastq.gz" \
-    --discard-untrimmed > "${NAME}_cutadapt.log"
+  R1_ADAPTER=${R1_ADAPTER:-"${R1_PRIMER}${NS}${R1_SUFFIX}"}
+  # Barcode-extraction offset: characters before the barcode's run of N's, whatever
+  # precedes them (works for both the default R1_ADAPTER above and any override).
+  R1_PREFIX=${R1_ADAPTER%%N*}
+  COUNT_OFFSET=$(( ${#R1_PREFIX} + 1 ))
+  if [ -n "${R2_ADAPTER:-}" ]; then
+    # Confirmed real usage (e.g. IntronTRIP/SON spliced+unspliced readouts): R1 stays the
+    # standard barcode adapter, but a construct-specific 5' adapter is additionally
+    # trimmed off R2 -- same anchored convention as -g.
+    cutadapt -j "$THREADS" -n 1 --cut 4 \
+      -g "^${R1_ADAPTER}" \
+      -G "^${R2_ADAPTER}" \
+      --rename='{id} umi={cut_prefix} adapter={adapter_name} barcode={match_sequence}' \
+      -o "01_cutadapt/${NAME}.R1.fastq.gz" -p "01_cutadapt/${NAME}.R2.fastq.gz" \
+      "${NAME}_R1_001.fastq.gz" "${NAME}_R2_001.fastq.gz" \
+      --discard-untrimmed > "${NAME}_cutadapt.log"
+  else
+    cutadapt -j "$THREADS" -n 1 --cut 4 \
+      -g "^${R1_ADAPTER}" \
+      --rename='{id} umi={cut_prefix} adapter={adapter_name} barcode={match_sequence}' \
+      -o "01_cutadapt/${NAME}.R1.fastq.gz" -p "01_cutadapt/${NAME}.R2.fastq.gz" \
+      "${NAME}_R1_001.fastq.gz" "${NAME}_R2_001.fastq.gz" \
+      --discard-untrimmed > "${NAME}_cutadapt.log"
+  fi
 
   # Barcode -> read count, sorted by count descending.
   zcat "./01_cutadapt/${NAME}.R1.fastq.gz" \
     | sed 's/umi=//' | sed 's/barcode=//' \
-    | awk -v off="$OFFSET" -v len="$BARCODE_LEN" '{if (NR % 4 == 1) {print substr($4,off,len)}}' \
+    | awk -v off="$COUNT_OFFSET" -v len="$BARCODE_LEN" '{if (NR % 4 == 1) {print substr($4,off,len)}}' \
     | sort | uniq -c | sort -k1,1rn \
     | awk '{print $2 "\t" $1}' \
     | gzip > "${NAME}.counts.txt.gz"

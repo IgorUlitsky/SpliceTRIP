@@ -48,12 +48,25 @@ position-tagged FASTQ instead of raw sequence.
   from both mates. Output: `01_cutadapt/<name>.R{1,2}.fastq.gz` (R1 header carries
   `umi=`/`barcode=`) plus `<name>.barcodes.txt.gz` (read_name, UMI, barcode — one
   exactly-`BARCODE_LEN`-nt barcode per read).
-- **`count` mode** (Norm/Exp libraries — barcode readout only, R2 unused downstream): a
-  single **anchored** (`-g "^..."`) cutadapt pass, then an awk one-liner tallies
-  `barcode -> read_count` straight from the renamed FASTQ header, sorted by count
-  descending. Output: `01_cutadapt/<name>.R{1,2}.fastq.gz` and `<name>.counts.txt.gz`.
-  See `docs/count_exp_reference.md` for the real per-sample job scripts this mode is a
-  parameterised template of, and why the primer match is anchored.
+- **`count` mode** (Norm/Exp libraries — barcode readout only, R2 unused downstream unless
+  a per-row R2 adapter is set, see below): a single **anchored** (`-g "^..."`) cutadapt
+  pass, then an awk one-liner tallies `barcode -> read_count` straight from the renamed
+  FASTQ header, sorted by count descending. Output: `01_cutadapt/<name>.R{1,2}.fastq.gz` and
+  `<name>.counts.txt.gz`. See `docs/count_exp_reference.md` for the real per-sample job
+  scripts this mode is a parameterised template of, and why the primer match is anchored.
+
+  Some Norm/Exp libraries were sequenced with a construct-specific adapter instead of the
+  standard one — real, confirmed usage: every IntronTRIP_combined/SON_combined Spliced/
+  Unspliced readout additionally trims a construct-specific 5' adapter off R2 (verified
+  against real per-sample bsub `.csh` scripts, e.g. `IntronTRIP_run2/
+  TRIP_RNA_spliced_B3-6_1-1_S53.csh`). `### FASTQ_NORM`/`### FASTQ_SAMPLES` rows take two
+  optional trailing columns, `r1_adapter`/`r2_adapter` (bare sequence, no `^`/`g:`/`G:` —
+  the script adds the anchor), overriding the constructed default and adding a paired `-G`
+  trim respectively; blank falls back to the existing R1-only default. See
+  `config/introntrip_combined_config.txt`/`config/son_combined_config.txt` for real
+  populated examples. Verified: with the override, stage 01 reproduces real production
+  barcode counts byte-for-byte (`TRIP_RNA_spliced_B3-6_1-1_S53`, 417,081 barcodes, zero
+  diff).
 
 ### [02] bowtie2 mapping — `scripts/02_run_bowtie2.sh <name>` (Map-mode only)
 
@@ -444,7 +457,9 @@ See `config/example_config.txt` for the config format:
   r2_suffix, mapName, contamination_batch(optional)`. `mapName` is both which construct's genuine
   map this sample feeds into (stage 06) and its stage 05 contamination group — the two are the
   same concept here.
-- `### FASTQ_NORM` — one row per Norm-mode fastq sample: `name, path_prefix, r1_suffix, r2_suffix`.
+- `### FASTQ_NORM` — one row per Norm-mode fastq sample: `name, path_prefix, r1_suffix, r2_suffix,
+  r1_adapter(optional), r2_adapter(optional)`. The last two override stage 01's default
+  count-mode adapter per-sample — see stage 01 above.
 - `### FASTQ_SAMPLES` — one row per Exp-mode fastq sample, same shape as `### FASTQ_NORM`; kept as
   a separate section purely so it's clear at a glance which samples are Norm vs Exp.
 - `### COMBOS` — `mapName, normSample, expSample, effLength, reverseComplement,

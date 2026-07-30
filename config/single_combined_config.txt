@@ -49,7 +49,7 @@ Map_CPA_noP_rep1_S93	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Map_CPA_n
 Map_CPA_noP_rep2_S94	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Map_CPA_noP_rep2_S94	_R1_001.fastq.gz	_R2_001.fastq.gz	CPA_noP	run3
 
 ### FASTQ_NORM
-# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>r1_adapter(optional)<TAB>r2_adapter(optional)
 5ss_Norm_rep1_S60	/home/projects/ulitsky/igoru/data/human/TRIP/run2/5ss_Norm_rep1_S60	_R1_001.fastq.gz	_R2_001.fastq.gz
 5ss_Norm_rep2_S61	/home/projects/ulitsky/igoru/data/human/TRIP/run2/5ss_Norm_rep2_S61	_R1_001.fastq.gz	_R2_001.fastq.gz
 CPA_Norm_rep2_S58	/home/projects/ulitsky/igoru/data/human/TRIP/run2/CPA_Norm_rep2_S58	_R1_001.fastq.gz	_R2_001.fastq.gz
@@ -60,7 +60,7 @@ Norm_CPA_noP_rep1_S89	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Norm_CPA
 Norm_CPA_noP_rep2_S90	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Norm_CPA_noP_rep2_S90	_R1_001.fastq.gz	_R2_001.fastq.gz
 
 ### FASTQ_SAMPLES
-# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>r1_adapter(optional)<TAB>r2_adapter(optional)
 3intron_5ss_noP_Pool1_Rep2_S106	/home/projects/ulitsky/igoru/data/human/TRIP/run7/3intron_5ss_noP_Pool1_Rep2_S106	_R1_001.fastq.gz	_R2_001.fastq.gz
 3intron_5ss_noP_Pool1_S95	/home/projects/ulitsky/igoru/data/human/TRIP/run7/3intron_5ss_noP_Pool1_S95	_R1_001.fastq.gz	_R2_001.fastq.gz
 3intron_5ss_noP_Pool2_Rep2_S107	/home/projects/ulitsky/igoru/data/human/TRIP/run7/3intron_5ss_noP_Pool2_Rep2_S107	_R1_001.fastq.gz	_R2_001.fastq.gz
