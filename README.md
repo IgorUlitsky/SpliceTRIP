@@ -356,6 +356,58 @@ embedded per-run creation timestamp) against the original script on real `single
 data. No hardcoded external paths to extract — like stages 11-13, it only reads other pipeline
 stages' own output.
 
+## Data flow
+
+How each stage's output feeds the next, as a visual recap of the stage-by-stage descriptions
+above. `combined_counts` (default target) is stages 01-07 (+ 14 if `### SPLICED_UNSPLICED` has
+rows); `annotated` adds 08-13/15. The DpnII distance analysis is a side-branch off stage 06,
+independent of everything else.
+
+```mermaid
+flowchart TD
+    RAW["raw fastq R1/R2"]
+
+    RAW --> S01M["01 cutadapt (map)"]
+    RAW --> S01C["01 cutadapt (count)<br/>Norm + Exp samples"]
+
+    S01M -->|"name.barcodes.txt.gz"| S03
+    S01M -->|"01_cutadapt/name.R{1,2}.fastq.gz"| S02["02 bowtie2"]
+    S02 -->|"02_mapping/name.second_read.bed.gz"| S03["03 analyzeTRIPMapping"]
+    S03 -->|"name.barcodes_poses.txt<br/>name.barcodes.bed"| S04["04 filterMappings (+TTAA)"]
+    S04 -->|"name.filtered_barcodes_poses.txt<br/>name.filtered_barcodes.bed"| S05["05 filterContaminants"]
+    S05 -->|"name.retained_barcodes.bed<br/>(per contamination_batch)"| S06["06 get_genuine_barcodes"]
+
+    S06 -->|"mapName.txt.retained_barcodes_genuine.bed<br/>(one row per construct's genuine barcode)"| S07["07 normalizeTRIP"]
+    S01C -->|"name.counts.txt.gz"| S07
+    S07 -->|"expName.combined_counts.txt ★"| DONE(["★ pipeline main deliverable"])
+
+    S07 --> S14["14 combineSplicedUnsplicedPairs<br/>(optional, needs ### SPLICED_UNSPLICED)"]
+    S14 -->|"outName.{spliced_unspliced,<br/>spliced_to_total,...}.combined_counts.txt"| REPORTS
+
+    subgraph ANNOT["annotated target only"]
+        S06 --> S08["08 make_tracks<br/>(MANE/introns/gencode/repeats)"]
+        S06 --> S09["09 gc_content<br/>(per-barcode ±500bp GC%)"]
+        S08 -->|"name.MANE_*.txt, .repeats.txt, ..."| S10
+        S09 -->|"name_with_gc.bed"| S10["10 table_annotation"]
+        S06 --> S10
+        S10 -->|"mapName.txt.annotated_tables.txt"| REPORTS
+    end
+
+    subgraph REPORTS["per-construct / cross-construct reports (read 07/10/14 output)"]
+        S11["11 comparePairwiseSharedPositions<br/>(across all constructs)"]
+        S12["12 annotateTRIP_positions<br/>(per construct)"]
+        S13["13 annotateTRIPGeneBodies<br/>(per construct)"]
+        S15["15 gc_content_report<br/>(per construct)"]
+    end
+    S07 --> S11
+    S07 --> S12
+    S07 --> S13
+    S07 --> S15
+
+    S06 -->|"mapName.txt.retained_barcodes_genuine.dnpII_dists.txt"| DPNII["plot_dpnII_distances.R<br/>(+ hg38_ttaa.bed, hg38_dpnii.bed, hg38.gaps.bed.gz)"]
+    DPNII -->|"dpnII_distances.pdf"| DPNIIOUT(["real vs random-TTAA<br/>DpnII-distance comparison"])
+```
+
 ## Running
 
 ```bash
