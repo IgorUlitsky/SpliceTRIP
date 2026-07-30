@@ -2,12 +2,12 @@
 # =============================================================================
 # TRIP unified pipeline — orchestrator
 # =============================================================================
-# Reads a config text file (see config/example_config.txt) and runs stages 01-14
+# Reads a config text file (see config/example_config.txt) and runs stages 01-15
 # (cutadapt -> bowtie2 -> analyzeTRIPMapping -> filterMappings[+TTAA] ->
 # filterContaminants -> get_genuine_barcodes -> normalizeTRIP[+oneMismatch] ->
 # combineSplicedUnsplicedPairs[if configured] -> make_tracks -> gc_content ->
 # table_annotation -> comparePairwiseSharedPositions -> annotateTRIP_positions ->
-# annotateTRIPGeneBodies) in order.
+# annotateTRIPGeneBodies -> gc_content_report) in order.
 #
 # Usage
 #   bash run_pipeline.sh <config.txt> [target] [threads]
@@ -18,11 +18,11 @@
 #     genuine_barcodes  01-06
 #     combined_counts   01-07 (everything needed for combined_counts.txt) ★ pipeline's main
 #                        deliverable, plus stage 14 if ### SPLICED_UNSPLICED has rows
-#     annotated         01-14 (adds per-construct annotated_tables.txt -- MANE/gencode/
+#     annotated         01-15 (adds per-construct annotated_tables.txt -- MANE/gencode/
 #                        repeats/ChromHMM/SPIN/GC --, a pairwise shared-position
-#                        comparison across every ### FASTQ_MAPS construct, and per-construct
-#                        QC/gene-body positional-correlation reports; independent of stage
-#                        07, runs alongside it)
+#                        comparison across every ### FASTQ_MAPS construct, per-construct
+#                        QC/gene-body positional-correlation reports, and a GC-content-vs-
+#                        expression report; independent of stage 07, runs alongside it)
 #
 # Every stage writes into the CURRENT directory (matching each stage script's own
 # convention of writing next to its inputs) -- run this from wherever you want the
@@ -330,6 +330,16 @@ while read -r mapName; do
   Rscript "$SCRIPTS/13_annotateTRIPGeneBodies_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
     "$(basename "$NAMESEXP")" "plots/annotateTRIPGeneBodies_${mapName}.pdf" "$SPECKLE_DIR"
 done <<< "$MAPNAMES"
+echo
+
+echo "=== Stage 15: gc_content_report (per-construct GC-content vs expression) ==="
+while read -r mapName; do
+  [ -z "$mapName" ] && continue
+  NAMESEXP="$WORK/.pipeline_namesExp.${mapName}.txt"
+  echo "-- $mapName ($(wc -l < "$NAMESEXP") expression sample(s)) --"
+  Rscript "$SCRIPTS/15_gc_content_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
+    "$(basename "$NAMESEXP")" "plots/gc_content_report_${mapName}.pdf"
+done <<< "$MAPNAMES"
 
 echo
-echo "=== done: <mapName>.txt.annotated_tables.txt written for each construct; pairwise_shared_positions.pdf, annotateTRIP_positions_<mapName>.pdf, and annotateTRIPGeneBodies_<mapName>.pdf written ==="
+echo "=== done: <mapName>.txt.annotated_tables.txt written for each construct; pairwise_shared_positions.pdf, annotateTRIP_positions_<mapName>.pdf, annotateTRIPGeneBodies_<mapName>.pdf, and gc_content_report_<mapName>.pdf written ==="

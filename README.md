@@ -335,6 +335,27 @@ preserved as `#` comments) and `config/son_combined_spliced_unspliced.txt` for t
 `SON_combined` triplets — kept standalone rather than embedded in a full config, since
 `SON_combined` doesn't have a `### FASTQ_MAPS`/`### COMBOS`-style config in this repo yet.
 
+### [15] gc_content_report — `scripts/15_gc_content_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf>`
+
+Per-construct GC-content-vs-expression report, run once per `mapName` alongside stages 12/13
+(same `namesExp_file` format). For each `<expName>`: a GC% density histogram, an
+expression-vs-GC% scatter colored by GC category (Low/Average/High, from `annotated_tables.txt`'s
+`GC_category`), and an expression-by-GC-category boxplot with pairwise t-tests between the three
+categories.
+
+This is igoru's `gc_content_genuine_barcodes.R` verbatim, aside from an added doc header and one
+real bug fix (applied to the original script directly too, matching stages 07/10/12/13's
+equivalent merges): the unconditional `exp.log10 = log10(1+exp)` was silently overwriting the
+pre-existing, differently-scaled `exp.log10` that `*.spliced_unspliced.combined_counts.txt` files
+already carry (a `[0,1]`-bounded splicing ratio) — confirmed run in production against exactly
+such files (a real `gc_content_IntronTRIP_spliced_unspliced.pdf` already on disk). Verified: with
+the fix, merging a real `.spliced_unspliced.combined_counts.txt` keeps `exp.log10` bounded
+`[0,1]` as expected (mean 0.495) instead of being overwritten with `log10(1+exp)` (which would
+range up to 5.2 on the same data); byte-for-byte identical PDF output otherwise (aside from an
+embedded per-run creation timestamp) against the original script on real `single_combined` `5ss`
+data. No hardcoded external paths to extract — like stages 11-13, it only reads other pipeline
+stages' own output.
+
 ## Running
 
 ```bash
@@ -346,12 +367,13 @@ bash ../run_pipeline.sh ../config/example_config.txt combined_counts
 ```
 
 `target` (2nd arg) controls how far to run: `cutadapt` | `mapping` | `genuine_barcodes` |
-`combined_counts` (default — stages 01-07, the pipeline's main deliverable) | `annotated`
-(stages 01-13, adds per-construct `annotated_tables.txt`, a pairwise shared-position
-comparison across constructs, and per-construct QC/gene-body positional-correlation
-reports). Everything is written into the current directory. This runs stages
-sequentially/locally; stages 01-02 are heavy on real libraries (tens of minutes, several GB)
-and should be wrapped in `bsub` for production use.
+`combined_counts` (default — stages 01-07, the pipeline's main deliverable, plus stage 14 if
+`### SPLICED_UNSPLICED` has rows) | `annotated` (stages 01-15, adds per-construct
+`annotated_tables.txt`, a pairwise shared-position comparison across constructs, per-construct
+QC/gene-body positional-correlation reports, and a GC-content-vs-expression report). Everything
+is written into the current directory. This runs stages sequentially/locally; stages 01-02 are
+heavy on real libraries (tens of minutes, several GB) and should be wrapped in `bsub` for
+production use.
 
 See `config/example_config.txt` for the config format:
 
