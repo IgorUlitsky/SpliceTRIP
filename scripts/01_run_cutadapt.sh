@@ -73,9 +73,13 @@ map)
   ;;
 
 count)
-  # Norm / Exp libraries: single anchored pass, R2 is not used downstream.
+  # Norm / Exp libraries: single pass, R2 is not used downstream. -g is UNANCHORED here
+  # (no leading ^), matching every real historical cut_norm.csh/cut_exp.csh verified across
+  # run2/run4/run7/SON_run2/IntronTRIP_run2 -- an anchored ^ was found to have crept in here
+  # and would be stricter than what was actually run (requiring the primer at read position
+  # 0 exactly, dropping reads with a few extra leading bases that the real commands kept).
   cutadapt -j "$THREADS" -n 1 --cut 4 \
-    -g "^${R1_PRIMER}${NS}${R1_SUFFIX}" \
+    -g "${R1_PRIMER}${NS}${R1_SUFFIX}" \
     --rename='{id} umi={cut_prefix} adapter={adapter_name} barcode={match_sequence}' \
     -o "01_cutadapt/${NAME}.R1.fastq.gz" -p "01_cutadapt/${NAME}.R2.fastq.gz" \
     "${NAME}_R1_001.fastq.gz" "${NAME}_R2_001.fastq.gz" \
