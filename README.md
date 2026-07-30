@@ -414,14 +414,15 @@ Verified end-to-end on real (subsampled) data from stages 01 through 07.
   14). Derived verbatim from `IntronTRIP_combined/{A1,...,B3-9}.txt` + `combos.txt` +
   `spliced_unspliced.txt`.
 - `config/son_combined_config.txt` — 3 constructs (A1, B3-9, E1), a speckle knock-sideways
-  (SON-FKBP/Protac) experiment: 11 Map + 6 Norm + 108 Exp samples, 108 combos, plus a 36-row
+  (SON-FKBP/Protac) experiment: 12 Map + 6 Norm + 108 Exp samples, 108 combos, plus a 36-row
   `### SPLICED_UNSPLICED`. Derived verbatim from `SON_combined/{SON_A1,SON_B3_9,SON_E1}.txt` +
-  `combos.txt` + `spliced_unspliced.txt`. Note: `Map_SON_B3_9_2_2_S70` (present in `LP_run1`
-  and in the contamination fileList/the alternate, unreferenced `SON_B3.txt`) is excluded here
-  too, matching the real `SON_B3_9.txt` manifest that `combos.txt` actually uses — only 3 of
-  the 4 real B3-9 map samples ever fed the genuine-barcode map. All 11 Map samples are a
-  single contamination batch (`LP_run1`), confirmed against the real `LP_run1/SON.txt`
-  fileList.
+  `combos.txt` + `spliced_unspliced.txt`. All 12 Map samples are a single contamination batch
+  (`LP_run1`), confirmed against the real `LP_run1/SON.txt` fileList. Fixed 2026-07-30: the
+  real manifest `SON_combined/SON_B3_9.txt` was missing
+  `Map_SON_B3_9_2_2_S70.retained_barcodes.bed` (present in `LP_run1`, the contamination
+  fileList, and the otherwise-unreferenced alternate manifest `SON_B3.txt`, but dropped from
+  `SON_B3_9.txt` itself) — added the missing line to the real file and to this config, so
+  `SON_B3_9` is now all 4 real map samples, not 3.
 - `config/son_combined_spliced_unspliced.txt` — superseded by the `### SPLICED_UNSPLICED`
   section in `son_combined_config.txt` above; kept only because it predates that config.
 

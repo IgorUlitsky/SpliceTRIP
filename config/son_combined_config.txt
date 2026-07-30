@@ -2,14 +2,16 @@
 #
 # Real dataset: 3 constructs (A1, B3-9, E1) in a speckle knock-sideways (SON-FKBP/Protac)
 # experiment -- DMSO (control) vs Protac (speckle-depleted) conditions, Spliced/Unspliced/
-# Total RNA readouts, some with rep2/rep3 reruns. All 11 Map libraries were sequenced
+# Total RNA readouts, some with rep2/rep3 reruns. All 12 Map libraries were sequenced
 # together in one run (LP_run1) -- confirmed against the real LP_run1/SON.txt fileList
-# (name<TAB>group, single contamination batch). Note: SON_B3_9.txt (the manifest combos.txt
-# actually references) has only 3 of the 4 real B3-9 map samples --
-# Map_SON_B3_9_2_2_S70 is present in LP_run1 and in the contamination fileList/SON_B3.txt
-# (an alternate, unreferenced manifest) but was excluded from the real, actually-used
-# genuine-barcode map; excluded here too to match what combos.txt actually uses, rather
-# than the broader SON_B3.txt.
+# (name<TAB>group, single contamination batch).
+#
+# NOTE (fixed 2026-07-30): the real manifest /home/projects/ulitsky/shared/data/human/TRIP/
+# SON_combined/SON_B3_9.txt (a symlink to LP_run1/SON_B3_9.txt) was missing
+# Map_SON_B3_9_2_2_S70.retained_barcodes.bed -- present in LP_run1, in the contamination
+# fileList, and in the (otherwise unreferenced) alternate manifest SON_B3.txt, but dropped
+# from SON_B3_9.txt itself. Added the missing line to the real file (matching SON_B3.txt)
+# and to this config's ### FASTQ_MAPS below -- SON_B3_9 is now all 4 real map samples, not 3.
 # Derived directly from the real
 # /home/projects/ulitsky/shared/data/human/TRIP/SON_combined/{SON_A1,SON_B3_9,SON_E1}.txt
 # manifests, combos.txt (108 rows, verbatim), and spliced_unspliced.txt (36 rows, verbatim).
@@ -44,6 +46,7 @@ Map_SON_A1_2_2_S62	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_
 Map_SON_B3_9_1_1_S67	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_B3_9_1_1_S67	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B3_9	LP_run1
 Map_SON_B3_9_1_2_S68	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_B3_9_1_2_S68	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B3_9	LP_run1
 Map_SON_B3_9_2_1_S69	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_B3_9_2_1_S69	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B3_9	LP_run1
+Map_SON_B3_9_2_2_S70	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_B3_9_2_2_S70	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B3_9	LP_run1
 Map_SON_E1_1_1_S63	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_E1_1_1_S63	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_E1	LP_run1
 Map_SON_E1_1_2_S64	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_E1_1_2_S64	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_E1	LP_run1
 Map_SON_E1_2_1_S65	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_E1_2_1_S65	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_E1	LP_run1
