@@ -194,6 +194,59 @@ with a single sequencing error that would otherwise be silently dropped for not 
 any genuine barcode exactly. Off by default; exact-match behaviour is unchanged when the
 flag is omitted.
 
+### [08] make_tracks — `scripts/08_make_tracks_genuine_barcodes.sh <name_list.txt> <mane_bed> <mane_introns_bed> <gencode_noncoding_bed> <repeats_bed>`
+
+Reference annotation, independent of stage 07 (only needs stage 06's genuine-barcode
+maps). One `bedtools intersect` per (construct × reference track × strand orientation),
+for every construct listed in `<name_list.txt>` (one `<mapName>.txt` per line — the same
+format as the real production `names.complete_maps.txt`, and what the orchestrator builds
+automatically from `### FASTQ_MAPS`'s distinct `mapName`s). Produces, per construct:
+`<name>.MANE_all.txt`, `.MANE_exonic.txt`, `.MANE_all_antisense.txt`,
+`.MANE_exonic_antisense.txt` (all against `mane_bed`, sense/antisense via `-s`/`-S`, exonic
+via `-split`), `.MANE_introns_sense.txt`/`.MANE_introns_antisense.txt` (against
+`mane_introns_bed`), `.gencode_noncoding_all.txt`, and `.repeats.txt` — all read by stage 10.
+
+This is igoru's `make_tracks_genuine_barcodes.sh` verbatim, with its 4 previously-hardcoded
+annotation bed paths turned into required arguments (config-driven `MANE_BED`,
+`MANE_INTRONS_BED`, `GENCODE_NONCODING_BED`, `REPEATS_BED`) and `cat file | while read`
+replaced with `while read < file` (same behaviour, one fewer process). Verified
+byte-for-byte identical output against the original script on a real construct (5ss, 3292
+genuine barcodes).
+
+### [09] gc_content — `scripts/09_gc_content_single_genuine_barcodes.sh <name> <chrom_sizes> <genome_fasta>`
+
+Run once **per construct** (unlike 08/10, which take the whole name-list at once) —
+matches the original per-construct `bsub` usage. Slops each genuine barcode's position
+±500bp (`bedtools slop`), extracts the flanking sequence (`bedtools getfasta`), computes
+%GC per barcode, and writes `<name>_with_gc.bed` (stage 06's bed + a GC% column), which
+stage 10 reads for `GC`/`GC_category` (Low/Average/High, ±1 SD from the construct's mean).
+
+This is igoru's `gc_content_single_genuine_barcodes.sh`, with its 2 previously-hardcoded
+reference paths turned into required arguments (config-driven `CHROM_SIZES`,
+`GENOME_FASTA`) and the inline `ml BEDTools` dropped (this repo's convention: modules are
+loaded once up front by the caller — see "Running" below — not re-loaded per stage script).
+Verified byte-for-byte identical output against the original script.
+
+### [10] table_annotation — `scripts/10_table_annotation_genuine_barcodes.R <path> <name_list.txt> [mane_bed] [mane_introns_bed] [gencode_noncoding_bed] [trans2gene] [mane_expression] [chromhmm_bed] [spin_bed]`
+
+The per-construct annotation table stage 10-and-later analysis scripts (e.g.
+`annotateTRIP_positions_genuine_barcodes.R`, `compareReplicatesAndMultiIntegrations_uniform.R`)
+read as `<mapName>.txt.annotated_tables.txt`. For every construct in `<name_list.txt>`,
+joins stage 06's genuine-barcode bed with stage 08's MANE/intron/gencode/repeats tracks and
+stage 09's GC content, then adds: host-gene identity/expression (sense + antisense, exonic
++ intronic, normalized to K562 RNA-seq via `trans2gene`/`mane_expression`), distance-to-
+TSS/TES/intron-boundary and relative position within the host feature, and two independent
+chromatin-state annotations per position — ENCODE ChromHMM (`chromhmm_bed`) and SPIN
+nuclear-compartment state (`spin_bed`).
+
+This is igoru's `table_annotation_genuine_barcodes.R`, with its 7 previously-hardcoded
+annotation paths turned into optional CLI args (each keeps its original hardcoded path as
+a default when omitted, same length-guarded pattern as stage 06's `barcodeLen`/
+`dpniiBedPath`) so the config drives them instead — behaviour is otherwise unchanged
+(including a commented-out, never-active linear-regression residuals block from the
+original, removed here as dead code rather than ported). Verified byte-for-byte identical
+output against the original script on a real construct.
+
 ## Running
 
 ```bash
@@ -205,14 +258,19 @@ bash ../run_pipeline.sh ../config/example_config.txt combined_counts
 ```
 
 `target` (2nd arg) controls how far to run: `cutadapt` | `mapping` | `genuine_barcodes` |
-`combined_counts` (default, runs everything). Everything is written into the current directory.
-This runs stages sequentially/locally; stages 01-02 are heavy on real libraries (tens of minutes,
-several GB) and should be wrapped in `bsub` for production use.
+`combined_counts` (default — stages 01-07, the pipeline's main deliverable) | `annotated`
+(stages 01-10, adds per-construct `annotated_tables.txt`). Everything is written into the
+current directory. This runs stages sequentially/locally; stages 01-02 are heavy on real
+libraries (tens of minutes, several GB) and should be wrapped in `bsub` for production use.
 
 See `config/example_config.txt` for the config format:
 
-- `### GLOBAL` — `key<TAB>value` pairs (`BARCODE_LEN`, `BOWTIE2_INDEX`, `CONT_FACTOR`, `TTAA_BED`,
-  `R1_PRIMER`, `R1_SUFFIX`, `R2_PRIMER`).
+- `### GLOBAL` — `key<TAB>value` pairs. Core: `BARCODE_LEN`, `BOWTIE2_INDEX`, `CONT_FACTOR`,
+  `TTAA_BED`, `R1_PRIMER`, `R1_SUFFIX`, `R2_PRIMER`. Stages 08-10 (`annotated` target only,
+  all shared cluster reference resources — safe to leave unset if you only need
+  `combined_counts`): `MANE_BED`, `MANE_INTRONS_BED`, `GENCODE_NONCODING_BED`,
+  `REPEATS_BED`, `CHROM_SIZES`, `GENOME_FASTA`, `TRANS2GENE`, `MANE_EXPRESSION`,
+  `CHROMHMM_BED`, `SPIN_BED`.
 - `### FASTQ_MAPS` — one row per Map-mode (DNA) fastq sample: `name, path_prefix, r1_suffix,
   r2_suffix, mapName, contamination_batch(optional)`. `mapName` is both which construct's genuine
   map this sample feeds into (stage 06) and its stage 05 contamination group — the two are the

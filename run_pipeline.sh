@@ -2,10 +2,10 @@
 # =============================================================================
 # TRIP unified pipeline — orchestrator
 # =============================================================================
-# Reads a config text file (see config/example_config.txt) and runs stages 01-07
+# Reads a config text file (see config/example_config.txt) and runs stages 01-10
 # (cutadapt -> bowtie2 -> analyzeTRIPMapping -> filterMappings[+TTAA] ->
-# filterContaminants -> get_genuine_barcodes -> normalizeTRIP[+oneMismatch]) in order,
-# ending at combined_counts.txt.
+# filterContaminants -> get_genuine_barcodes -> normalizeTRIP[+oneMismatch] ->
+# make_tracks -> gc_content -> table_annotation) in order.
 #
 # Usage
 #   bash run_pipeline.sh <config.txt> [target] [threads]
@@ -14,7 +14,10 @@
 #     cutadapt          stage 01 only
 #     mapping           01-02 (Map-mode samples only)
 #     genuine_barcodes  01-06
-#     combined_counts   01-07 (everything)
+#     combined_counts   01-07 (everything needed for combined_counts.txt) ★ pipeline's main deliverable
+#     annotated         01-10 (adds per-construct annotated_tables.txt -- MANE/gencode/
+#                        repeats/ChromHMM/SPIN/GC -- independent of stage 07, runs
+#                        alongside it)
 #
 # Every stage writes into the CURRENT directory (matching each stage script's own
 # convention of writing next to its inputs) -- run this from wherever you want the
@@ -36,8 +39,8 @@ SCRIPTS="$HERE/scripts"
 WORK=$(pwd)
 
 case "$TARGET" in
-  cutadapt|mapping|genuine_barcodes|combined_counts) ;;
-  *) echo "unknown target '$TARGET' (expected: cutadapt | mapping | genuine_barcodes | combined_counts)" >&2; exit 1;;
+  cutadapt|mapping|genuine_barcodes|combined_counts|annotated) ;;
+  *) echo "unknown target '$TARGET' (expected: cutadapt | mapping | genuine_barcodes | combined_counts | annotated)" >&2; exit 1;;
 esac
 
 echo "=== TRIP unified pipeline ==="
@@ -74,10 +77,27 @@ done < "$PARSED/GLOBAL.tsv"
 : "${R2_PRIMER:?R2_PRIMER missing from ### GLOBAL}"
 TTAA_BED=${TTAA_BED:-}
 DPNII_BED=${DPNII_BED:-}
+# Stages 08-10 (annotated target only) -- each left blank falls back to that stage
+# script's own hardcoded default (same convention as DPNII_BED above).
+MANE_BED=${MANE_BED:-}
+MANE_INTRONS_BED=${MANE_INTRONS_BED:-}
+GENCODE_NONCODING_BED=${GENCODE_NONCODING_BED:-}
+REPEATS_BED=${REPEATS_BED:-}
+CHROM_SIZES=${CHROM_SIZES:-}
+GENOME_FASTA=${GENOME_FASTA:-}
+TRANS2GENE=${TRANS2GENE:-}
+MANE_EXPRESSION=${MANE_EXPRESSION:-}
+CHROMHMM_BED=${CHROMHMM_BED:-}
+SPIN_BED=${SPIN_BED:-}
 
 echo "--- GLOBAL settings ---"
 echo "BARCODE_LEN=$BARCODE_LEN  CONT_FACTOR=$CONT_FACTOR  TTAA_BED=${TTAA_BED:-<off>}  DPNII_BED=${DPNII_BED:-<script default>}"
 echo "BOWTIE2_INDEX=$BOWTIE2_INDEX"
+if [ "$TARGET" = "annotated" ]; then
+  echo "MANE_BED=${MANE_BED:-<script default>}  MANE_INTRONS_BED=${MANE_INTRONS_BED:-<script default>}  GENCODE_NONCODING_BED=${GENCODE_NONCODING_BED:-<script default>}"
+  echo "REPEATS_BED=${REPEATS_BED:-<script default>}  CHROM_SIZES=${CHROM_SIZES:-<script default>}  GENOME_FASTA=${GENOME_FASTA:-<script default>}"
+  echo "TRANS2GENE=${TRANS2GENE:-<script default>}  MANE_EXPRESSION=${MANE_EXPRESSION:-<script default>}  CHROMHMM_BED=${CHROMHMM_BED:-<script default>}  SPIN_BED=${SPIN_BED:-<script default>}"
+fi
 echo
 
 export R1_PRIMER R1_SUFFIX R2_PRIMER
@@ -208,4 +228,42 @@ while IFS=$'\t' read -r mapName normSample expSample effLength revComp oneMismat
 done < "$PARSED/COMBOS.tsv"
 
 echo
-echo "=== done: combined_counts.txt written for each ### COMBOS row ==="
+echo "=== combined_counts.txt written for each ### COMBOS row ==="
+
+if [ "$TARGET" != "annotated" ]; then echo "target=combined_counts reached, stopping."; exit 0; fi
+
+# =============================================================================
+# Stages 08-10 (target=annotated): per-construct reference annotation, independent of
+# stage 07 -- only needs stage 06's genuine-barcode maps, not combined_counts.txt.
+# Reuses $MAPNAMES from stage 06. Builds one name-list file (one "<mapName>.txt" line
+# per construct, matching the real production names.complete_maps.txt format) that
+# stages 08 and 10 each take as a single whole-list argument; stage 09 runs once per
+# construct instead, matching its original per-construct bsub usage.
+# =============================================================================
+NAMELIST="$WORK/.pipeline_names_complete_maps.txt"
+> "$NAMELIST"
+while read -r mapName; do
+  [ -z "$mapName" ] && continue
+  echo "${mapName}.txt" >> "$NAMELIST"
+done <<< "$MAPNAMES"
+
+echo
+echo "=== Stage 08: make_tracks (MANE/gencode/repeats intersects) ==="
+bash "$SCRIPTS/08_make_tracks_genuine_barcodes.sh" "$(basename "$NAMELIST")" \
+  "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$REPEATS_BED"
+echo
+
+echo "=== Stage 09: gc_content (one run per construct) ==="
+while read -r mapName; do
+  [ -z "$mapName" ] && continue
+  echo "-- $mapName --"
+  bash "$SCRIPTS/09_gc_content_single_genuine_barcodes.sh" "${mapName}.txt" "$CHROM_SIZES" "$GENOME_FASTA"
+done <<< "$MAPNAMES"
+echo
+
+echo "=== Stage 10: table_annotation (annotated_tables.txt) ==="
+Rscript "$SCRIPTS/10_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
+  "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$TRANS2GENE" "$MANE_EXPRESSION" "$CHROMHMM_BED" "$SPIN_BED"
+
+echo
+echo "=== done: <mapName>.txt.annotated_tables.txt written for each construct ==="

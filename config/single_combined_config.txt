@@ -21,6 +21,16 @@ DPNII_BED	/home/projects/ulitsky/igoru/data/human/hg38_dpnii.bed
 R1_PRIMER	AGAAGTTCAACTCGGTACCAGAGCCACC
 R1_SUFFIX	GGATC
 R2_PRIMER	GTACGTCACAATATGATTATCTTTCTAGGGTTAA
+MANE_BED	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genomic.bed
+MANE_INTRONS_BED	/home/projects/ulitsky/lidiag/genomic_data/GCF_000001405.40_GRCh38.p14_MANE_introns_new_format.bed
+GENCODE_NONCODING_BED	/home/projects/ulitsky/lidiag/genomic_data/gencode.v46.annotation.noncoding.bed
+REPEATS_BED	/home/projects/ulitsky/lidiag/genomic_data/hg38.repeats.bed
+CHROM_SIZES	/home/projects/ulitsky/shared/ucsctracks/hg38/hg38.chrom.sizes
+GENOME_FASTA	/home/projects/ulitsky/lidiag/genomic_data/hg38.fa
+TRANS2GENE	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genomic.trans2gene.txt
+MANE_EXPRESSION	/home/projects/ulitsky/igoru/data/human/ENCODE/K562/K562_1_MANEReadsPerGene.out.tab
+CHROMHMM_BED	/home/projects/ulitsky/shared/data/human/K562_ChromHMM_Kellis_ENCFF319VXX.bed.gz
+SPIN_BED	/home/projects/ulitsky/igoru/R/trip/data/K562_SPIN_25kb_hg38.bed
 
 ### FASTQ_MAPS
 # name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mapName<TAB>contamination_batch
