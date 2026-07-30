@@ -418,6 +418,43 @@ the histone and speckle heatmaps.
 
 This is igoru's `~/R/trip/plotMetageneCorrelations_singleCombined.R` verbatim, no logic changes.
 
+## Visualization scripts
+
+Not pipeline stages — standalone plotting scripts run against already-produced stage output
+(typically stage 07/10/14), not wired into `run_pipeline.sh` and not numbered (unlike stages
+11-18 above, which are also visualization/QC output but predate this convention).
+
+### plotSplicingEfficiencies — `scripts/plotSplicingEfficiencies_uniform.R <path> <expListFile> <outFile.pdf>`
+
+Per-construct splicing-efficiency violin plot: for each `expListFile` row, the distribution
+of per-position splicing efficiency (`exp.log10`, restricted to `[0,1]`) across barcodes.
+`expListFile` is `expName<TAB>niceName<TAB>nameMap.txt`, one row per violin **in display
+order** (no automatic reordering, unlike the original script's grep-based construct sort —
+put rows in the file in the order you want them plotted; two rows sharing a `niceName` are
+pooled into one violin). `expName.combined_counts.txt` must already carry its own `exp.log10`
+(a `[0,1]`-bounded splicing ratio — stage 14's `*.spliced_unspliced.combined_counts.txt` is
+the usual source); `nameMap.txt` is a construct's stage 10 `annotated_tables.txt`, read once
+and reused across rows that share it. Colors are dynamic by violin position (1-2 gray, 3-6
+alternating light/dark blue, 7+ a red gradient) rather than hardcoded to a fixed sample count.
+
+This is a rewrite of igoru's `~/R/trip/IntronTrip/plotSplicingEfficiencies.R`. That script
+read `<name>.annotated_tables.txt` directly for `exp.log10`, which only worked for one legacy
+directory (`IntronTRIP_combined2`) where `table_annotation.R` had been run a second time per
+splicing-derived experiment, baking `exp`/`exp.log10` straight into `annotated_tables.txt` — a
+different, non-standard layout from the rest of this pipeline (construct-level
+`<mapName>.txt.annotated_tables.txt` with no `exp` columns, merged downstream against
+`<expName>.combined_counts.txt` by each analysis script). Rewired onto that same standard
+merge instead (same `exp.log10`-preexisting guard and LP-style `map_barcode` handling as
+stage 12), so it works against `IntronTRIP_combined`/`SON_combined`-shaped data. Also dropped:
+an unrelated, broken "GC by intron" `ggplot` block (referenced an undefined `dfShow`, would
+have errored on execution — a copy-paste leftover from a different script) and an
+`n_samples <- nrow(dfShow)` line that would have crashed the same way before reaching the
+real violin plot; the dynamic (rather than hardcoded-to-16) sample-count color logic the
+original's own comment already called for is restored, using the actual number of violins.
+Verified against real `IntronTRIP_combined` data (`A1`/`B3-6`, 2 reps each): the merge
+reproduces the correct bounded-`[0,1]` `exp.log10` distribution and the script renders a
+4-violin PDF with no errors.
+
 ## Data flow
 
 How each stage's output feeds the next, as a visual recap of the stage-by-stage descriptions
