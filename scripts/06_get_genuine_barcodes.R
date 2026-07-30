@@ -3,21 +3,23 @@ library(DescTools)
 path="/home/labs/ulitsky/shared/data/human/TRIP/IntronTRIP_combined/"
 nameMap = "A1.txt"
 barcodeLen = 18
+dpniiBedPath = "/home/projects/ulitsky/igoru/data/human/hg38_dpnii.bed"
 
 myArgs = commandArgs(trailingOnly = T)
 if (length(myArgs)>0)
 {
   path = myArgs[1]
   nameMap = myArgs[2]
-  # myArgs[3] is optional (barcodeLen keeps its default of 18 above when omitted) -- indexing
-  # a shorter myArgs vector out of bounds returns NA rather than erroring, and
-  # as.integer(NA) is silently NA, not 18. That NA then propagates through
+  # myArgs[3]/[4] are optional (barcodeLen/dpniiBedPath keep their defaults above when
+  # omitted) -- indexing a shorter myArgs vector out of bounds returns NA rather than
+  # erroring, and as.integer(NA) is silently NA, not 18. That NA then propagates through
   # nchar(barcodes)==barcodeLen in filterBarcodes() as an all-NA comparison; barcodes[NA]
   # keeps its original length (just filled with NA) so the function's own length==0 guard
   # never trips, but the downstream tapply() drops the NA-keyed group entirely, silently
   # producing zero rows for every position and an empty final output with no error at all
   # (confirmed: this is exactly what happened running with only 2 args, path and nameMap).
   if (length(myArgs)>=3) barcodeLen = as.integer(myArgs[3])
+  if (length(myArgs)>=4 && nzchar(myArgs[4])) dpniiBedPath = myArgs[4]
 }
 print(path)
 print(nameMap)
@@ -106,6 +108,57 @@ filtered = data.frame(
 locationCounts = table(filtered$Group.1)
 
 singletons = subset(filtered,locationCounts[filtered$Group.1]==1)
+
+# ============================================================================
+# ===== NEW BLOCK (DpnII distance) — for each genuine (singleton) position, distance
+# to the nearest DOWNSTREAM DpnII site, downstream relative to the integration's own
+# strand (+ strand: next site at a higher coordinate; - strand: next site at a lower
+# coordinate). hg38_dpnii.bed lists DpnII RESTRICTION FRAGMENTS (a Hi-C-style digest
+# map: "chr1 0 11159 HIC_chr1_1 ..."), not individual cut-site coordinates directly --
+# but since consecutive fragments share a boundary and that shared boundary IS the cut
+# site, the site positions are just every fragment's start EXCEPT each chromosome's
+# very first fragment (whose start is 0, a chromosome-boundary artifact, not a real
+# DpnII site).
+print(paste("Loading DpnII sites from", dpniiBedPath))
+dpnii = read.table(dpniiBedPath, sep = "\t", stringsAsFactors = FALSE,
+                    colClasses = c("character","integer","NULL","NULL","NULL","NULL"))
+colnames(dpnii) = c("chrom","start")
+dpnii = dpnii[order(dpnii$chrom, dpnii$start), ]
+dpnii = dpnii[duplicated(dpnii$chrom), ]                # drop each chrom's first (boundary) fragment
+dpniiByChrom = lapply(split(dpnii$start, dpnii$chrom), sort)
+print(paste("Loaded", nrow(dpnii), "DpnII sites on", length(dpniiByChrom), "contigs"))
+
+# vec is sorted ascending 0-based DpnII site starts for one contig (NULL if the contig
+# isn't in the reference at all). NA if pos is past the last / before the first site.
+nearestDownstreamDpnII <- function(chrom, pos, strand, byChrom)
+{
+  vec = byChrom[[chrom]]
+  if (is.null(vec)) return(NA_real_)
+  if (strand == "+") {
+    idx = findInterval(pos, vec) + 1L
+    if (idx > length(vec)) return(NA_real_)
+    vec[idx] - pos
+  } else {
+    idx = findInterval(pos - 1L, vec)
+    if (idx < 1L) return(NA_real_)
+    pos - vec[idx]
+  }
+}
+
+singletonsOrdered = singletons[order(singletons$chr,as.numeric(singletons$start)),]
+dpniiDist = mapply(nearestDownstreamDpnII, singletonsOrdered$chr, as.numeric(singletonsOrdered$start),
+                    singletonsOrdered$strand, MoreArgs = list(byChrom = dpniiByChrom))
+print(paste("DpnII downstream distance: median", median(dpniiDist, na.rm = TRUE),
+            "bp across", sum(!is.na(dpniiDist)), "of", length(dpniiDist), "positions"))
+write.table(
+  data.frame(chr = singletonsOrdered$chr, start = singletonsOrdered$start,
+             strand = singletonsOrdered$strand, barcode = singletonsOrdered$Group.1,
+             dpnII_dist = dpniiDist),
+  paste0(path, nameMap, ".retained_barcodes_genuine.dnpII_dists.txt"),
+  sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+# ===== end NEW BLOCK ========================================================
+# ============================================================================
+
 write.table(singletons[order(singletons$chr,as.numeric(singletons$start)),], paste0(path,nameMap,".retained_barcodes_genuine.bed"), sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
 forUCSC = singletons[order(singletons$chr,as.numeric(singletons$start)),]
 forUCSC[,5]=sapply(forUCSC[,5],min,1000)

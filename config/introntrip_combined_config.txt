@@ -15,6 +15,7 @@ BARCODE_LEN	18
 BOWTIE2_INDEX	/home/projects/ulitsky/shared/data/human/sequence/bowtie2/hg38
 CONT_FACTOR	10
 TTAA_BED	/home/projects/ulitsky/igoru/data/human/hg38_ttaa.bed
+DPNII_BED	/home/projects/ulitsky/igoru/data/human/hg38_dpnii.bed
 R1_PRIMER	AGAAGTTCAACTCGGTACCAGAGCCACC
 R1_SUFFIX	GGATC
 R2_PRIMER	GTACGTCACAATATGATTATCTTTCTAGGGTTAA

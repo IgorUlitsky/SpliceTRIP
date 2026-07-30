@@ -13,6 +13,8 @@ BOWTIE2_INDEX	/home/projects/ulitsky/shared/data/human/sequence/bowtie2/hg38
 CONT_FACTOR	10
 # Leave TTAA_BED blank (or comment the line out) to skip TTAA filtering entirely.
 TTAA_BED	/home/projects/ulitsky/igoru/data/human/hg38_ttaa.bed
+# Leave DPNII_BED blank to let stage 06 fall back to its own hardcoded default path.
+DPNII_BED	/home/projects/ulitsky/igoru/data/human/hg38_dpnii.bed
 R1_PRIMER	AGAAGTTCAACTCGGTACCAGAGCCACC
 R1_SUFFIX	GGATC
 R2_PRIMER	GTACGTCACAATATGATTATCTTTCTAGGGTTAA

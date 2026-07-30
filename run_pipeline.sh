@@ -73,9 +73,10 @@ done < "$PARSED/GLOBAL.tsv"
 : "${R1_SUFFIX:?R1_SUFFIX missing from ### GLOBAL}"
 : "${R2_PRIMER:?R2_PRIMER missing from ### GLOBAL}"
 TTAA_BED=${TTAA_BED:-}
+DPNII_BED=${DPNII_BED:-}
 
 echo "--- GLOBAL settings ---"
-echo "BARCODE_LEN=$BARCODE_LEN  CONT_FACTOR=$CONT_FACTOR  TTAA_BED=${TTAA_BED:-<off>}"
+echo "BARCODE_LEN=$BARCODE_LEN  CONT_FACTOR=$CONT_FACTOR  TTAA_BED=${TTAA_BED:-<off>}  DPNII_BED=${DPNII_BED:-<script default>}"
 echo "BOWTIE2_INDEX=$BOWTIE2_INDEX"
 echo
 
@@ -188,7 +189,7 @@ while read -r mapName; do
   manifest="$WORK/${mapName}.txt"
   awk -F'\t' -v m="$mapName" '$5==m{print $1".retained_barcodes.bed"}' "$PARSED/FASTQ_MAPS.tsv" > "$manifest"
   echo "-- $mapName ($(wc -l < "$manifest") sample(s)) --"
-  Rscript "$SCRIPTS/06_get_genuine_barcodes.R" "$WORK/" "$(basename "$manifest")" "$BARCODE_LEN"
+  Rscript "$SCRIPTS/06_get_genuine_barcodes.R" "$WORK/" "$(basename "$manifest")" "$BARCODE_LEN" "$DPNII_BED"
 done <<< "$MAPNAMES"
 echo
 

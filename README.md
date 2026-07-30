@@ -124,7 +124,7 @@ sequencing run. Output: `<name>.retained_barcodes_counts.txt` and
 field can pack several barcode variants at one position — see the script's own comments for
 a real row-misalignment bug this fixes over the simpler upstream version).
 
-### [06] get_genuine_barcodes — `scripts/06_get_genuine_barcodes.R <path> <mapName>.txt [barcodeLen]`
+### [06] get_genuine_barcodes — `scripts/06_get_genuine_barcodes.R <path> <mapName>.txt [barcodeLen] [dpniiBedPath]`
 
 Combines every replicate Map-mode sample belonging to one construct (every `### FASTQ_MAPS`
 row sharing a `mapName`, e.g. `5ss_Map_rep1`+`5ss_Map_rep2` -> mapName `5ss`) into one
@@ -146,6 +146,31 @@ real scale (~140k positions, profiled bottleneck). It also guards the optional 3
 (`barcodeLen`) argument — the old version's unconditional `as.integer(myArgs[3])` silently
 became `NA` when called with only 2 args, which silently zeroed out every position's output
 with no error at all.
+
+**DpnII distance.** For every genuine (singleton) position, also computes the distance to
+the nearest DpnII site *downstream* of it (downstream relative to the integration's own
+strand: `+` looks for the next site at a higher coordinate, `-` at a lower one), against
+`DPNII_BED`/`dpniiBedPath` (default `/home/projects/ulitsky/igoru/data/human/hg38_dpnii.bed`
+if not given — a Hi-C-style DpnII digest-fragment map, not a direct site list; site
+positions are recovered as each fragment's start, excluding each chromosome's first
+fragment, which starts at 0 as a chromosome-boundary artefact, not a real cut site). Written
+to `<mapName>.txt.retained_barcodes_genuine.dnpII_dists.txt` (`chr, start, strand, barcode,
+dpnII_dist`, with a header row — unlike this stage's other outputs, which are headerless
+BED). Verified on a real 5ss construct: median downstream distance 179 bp, consistent with
+the expected ~256 bp average genomic DpnII spacing (median of an exponential distance-to-
+nearest-point-in-one-direction ≈ 0.69 × mean spacing ≈ 177 bp).
+
+Compare against a random-genomic background with `scripts/plot_dpnII_distances.R
+<path> <distFiles> <ttaaBedPath> <dpniiBedPath> <outPdf> [nSample=10000]` — samples
+`nSample` random sites from the real hg38 TTAA reference (each given a random `+`/`-`
+strand, since piggyBac has no inherent insertion-orientation preference), computes the same
+downstream-DpnII-distance metric for each, and plots the two distributions (real vs random)
+overlaid, at both linear (capped at the pooled 99th percentile) and log10 scale. `distFiles`
+is a comma-separated list of `*.dnpII_dists.txt` filenames to pool into one histogram. On
+the same real 5ss construct, the random-TTAA background's median was 308 bp vs the real
+barcodes' 179 bp — real integration positions sit measurably closer to DpnII sites than
+random genomic sites do, worth investigating further (e.g. a library-prep or mapping bias
+toward reads near cut sites) rather than assuming it's expected.
 
 ### [07] normalizeTRIP (+ optional 1-nt mismatch tolerance) — `scripts/07_normalizeTRIP_MM.R <path> <path_norm> <mapName>.txt <normSample> <expSample> <effLength> <reverseComplement> [oneMismatch]`
 
@@ -217,6 +242,8 @@ the same flowcell.
 
 See `docs/count_exp_reference.md` for the real historical `cut_norm.csh`/`count_exp.csh` commands
 that stage 01's `count` mode is a parameterised template of.
+
+Both configs also set `DPNII_BED` (see stage 06 above) to the real hg38 DpnII digest map.
 
 ## Resolved from the two repos' open discrepancies
 
