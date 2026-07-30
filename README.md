@@ -273,6 +273,68 @@ directly to the script instead of going through the orchestrator when that's the
 Verified: the ported script is byte-identical (beyond an added doc header) to the version
 already validated on real `single_combined`/`SON_combined`/`IntronTRIP_combined` data.
 
+### [12] annotateTRIP_positions — `scripts/12_annotateTRIP_positions_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf>`
+
+Per-construct QC report, run once **per** `### FASTQ_MAPS` `mapName` (unlike stage 11's
+whole-list call): `namesExp_file` is one `<expName>` per line (not the `<mapName><TAB>
+<expName>` pairs stage 11 uses). For each `<expName>` in the file, merges its
+`combined_counts.txt` against that construct's `annotated_tables.txt` (stage 10), draws a
+barcode-overlap heatmap across libraries, then per-library boxplots/cross-tabs of
+expression against ChromHMM and SPIN chromatin state. Outputs the main PDF, a cross-library
+`.summary.pdf`, `.summary.txt`/`.counts.txt` (and `_SPIN` equivalents), plus a
+per-`(library, state-type)` `.raw_ChromHMM.txt`/`.raw_SPIN.txt` of the underlying
+(state, value) pairs, for pooling across an intron's replicates elsewhere.
+
+This is igoru's `annotateTRIP_positions_genuine_barcodes.R` verbatim, aside from an added
+doc header and dropping one dead-code line (a `chromSizes` table loaded but never
+referenced anywhere else in the script). No hardcoded external paths to extract — like
+stage 11, it only reads other pipeline stages' own output. Verified byte-for-byte identical
+output (PDFs identical but for an embedded, per-run creation timestamp) against the
+original script on real `single_combined` `5ss` data.
+
+### [13] annotateTRIPGeneBodies — `scripts/13_annotateTRIPGeneBodies_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf> [speckle_dir]`
+
+Per-construct gene-body positional analysis, run once per `mapName` alongside stage 12 (same
+`namesExp_file` format). For each `<expName>`, correlates per-position expression against
+local GC content, host-gene-to-nuclear-speckle distance, host gene expression (sense +
+antisense, exonic + intronic), distance to TSS/TES/intron boundary, relative position within
+gene/intron, and intron length — as both an `LSD::heatscatter` and a ggplot density-terrain
+scatter, each labelled with its own Spearman rho/n/p. Outputs the main PDF plus a
+cross-library `summary.pdf` (bar charts + heatmaps) and `.summary.txt`/`.counts.txt`/
+`.pvalue.xt` with the underlying rho/n/p behind every correlation.
+
+This is igoru's `annotateTRIPGeneBodies_genuine_barcodes.R` verbatim, aside from an added
+doc header and its one hardcoded external path — the MANE-to-speckle-distance reference
+directory — turned into an optional 5th CLI arg (`speckle_dir`, keeps the original hardcoded
+path as default when omitted, same length-guarded pattern as stage 06's `barcodeLen`/
+`dpniiBedPath`) so the config drives it instead. Verified byte-for-byte identical output
+(PDFs identical but for an embedded, per-run creation timestamp) against the original script
+on real `single_combined` `5ss` data.
+
+### [14] combineSplicedUnsplicedPairs — `scripts/14_combineSplicedUnsplicedPairs_uniform.R <path>`
+
+Optional, only runs (for both `combined_counts` and `annotated` targets) if `### SPLICED_UNSPLICED`
+has rows — unlike stages 08-13, it depends on stage 07's `combined_counts.txt`, so
+`run_pipeline.sh` runs it right after stage 07 rather than gating it to `annotated`. For each
+`### SPLICED_UNSPLICED` row (`outName`, `splicedExpName`, `unsplicedExpName`, `totalExpName`),
+loads the three named `combined_counts.txt` files (already-computed stage 07 outputs for a
+spliced/unspliced/total RNA readout triplet of the same construct — same barcode/position rows
+since they share the same map/norm) and derives three splicing-ratio tables:
+`<outName>.spliced_unspliced.combined_counts.txt` (`exp.log10 = spliced/(spliced+unspliced)`,
+`NA` if that sum is <20), `<outName>.spliced_to_total.combined_counts.txt` (rows with
+`spliced+total>=10` kept, `exp.log10 = spliced/(spliced+total)`, `NA` if <20), and
+`<outName>.spliced_and_unspliced_to_total.combined_counts.txt` (further filtered to
+`spliced+unspliced+total>=10`, `exp.log10 = (spliced+unspliced)/(spliced+unspliced+total)`).
+
+This is igoru's `~/R/trip/IntronTrip/combineSplicedUnsplicedPairs_uniform.R` verbatim, no logic
+changes. `run_pipeline.sh` writes the section's rows out as a real `spliced_unspliced.txt` in
+the working directory (the one positional arg the original script expects) before calling it.
+See `config/introntrip_combined_config.txt` for a populated real example (16 rows, derived
+verbatim from `IntronTRIP_combined/spliced_unspliced.txt`, including its 5 commented-out rows
+preserved as `#` comments) and `config/son_combined_spliced_unspliced.txt` for the real
+`SON_combined` triplets — kept standalone rather than embedded in a full config, since
+`SON_combined` doesn't have a `### FASTQ_MAPS`/`### COMBOS`-style config in this repo yet.
+
 ## Running
 
 ```bash
@@ -285,23 +347,24 @@ bash ../run_pipeline.sh ../config/example_config.txt combined_counts
 
 `target` (2nd arg) controls how far to run: `cutadapt` | `mapping` | `genuine_barcodes` |
 `combined_counts` (default — stages 01-07, the pipeline's main deliverable) | `annotated`
-(stages 01-11, adds per-construct `annotated_tables.txt` and a pairwise shared-position
-comparison across constructs). Everything is written into the current directory. This runs
-stages sequentially/locally; stages 01-02 are heavy on real libraries (tens of minutes,
-several GB) and should be wrapped in `bsub` for production use.
+(stages 01-13, adds per-construct `annotated_tables.txt`, a pairwise shared-position
+comparison across constructs, and per-construct QC/gene-body positional-correlation
+reports). Everything is written into the current directory. This runs stages
+sequentially/locally; stages 01-02 are heavy on real libraries (tens of minutes, several GB)
+and should be wrapped in `bsub` for production use.
 
 See `config/example_config.txt` for the config format:
 
 - `### GLOBAL` — `key<TAB>value` pairs. Core: `BARCODE_LEN`, `BOWTIE2_INDEX`, `CONT_FACTOR`,
-  `TTAA_BED`, `R1_PRIMER`, `R1_SUFFIX`, `R2_PRIMER`. Stages 08-10 (`annotated` target only,
+  `TTAA_BED`, `R1_PRIMER`, `R1_SUFFIX`, `R2_PRIMER`. Stages 08-10/13 (`annotated` target only,
   all shared cluster reference resources — safe to leave unset if you only need
   `combined_counts`): `MANE_BED`, `MANE_INTRONS_BED`, `GENCODE_NONCODING_BED`,
   `REPEATS_BED`, `CHROM_SIZES`, `GENOME_FASTA`, `TRANS2GENE`, `MANE_EXPRESSION`,
-  `CHROMHMM_BED`, `SPIN_BED`. Three of the smaller ones (`MANE_BED`, `CHROMHMM_BED`,
-  `SPIN_BED`) are bundled directly in `reference/` for anyone without access to the
-  Weizmann cluster's shared storage — see `reference/README.md`. The rest
+  `CHROMHMM_BED`, `SPIN_BED`, `SPECKLE_DIR`. Three of the smaller ones (`MANE_BED`,
+  `CHROMHMM_BED`, `SPIN_BED`) are bundled directly in `reference/` for anyone without access
+  to the Weizmann cluster's shared storage — see `reference/README.md`. The rest
   (`GENOME_FASTA`, `CHROM_SIZES`, `MANE_INTRONS_BED`, `GENCODE_NONCODING_BED`,
-  `REPEATS_BED`, `TRANS2GENE`, `MANE_EXPRESSION`) are too large or too
+  `REPEATS_BED`, `TRANS2GENE`, `MANE_EXPRESSION`, `SPECKLE_DIR`) are too large or too
   environment-specific to bundle; point them at your own copies.
 - `### FASTQ_MAPS` — one row per Map-mode (DNA) fastq sample: `name, path_prefix, r1_suffix,
   r2_suffix, mapName, contamination_batch(optional)`. `mapName` is both which construct's genuine
@@ -312,6 +375,10 @@ See `config/example_config.txt` for the config format:
   a separate section purely so it's clear at a glance which samples are Norm vs Exp.
 - `### COMBOS` — `mapName, normSample, expSample, effLength, reverseComplement,
   oneMismatch(optional)`, referencing names from the three sections above.
+- `### SPLICED_UNSPLICED` — optional (stage 14 only): `outName, splicedExpName,
+  unsplicedExpName, totalExpName`, all three referencing `### COMBOS`/`### FASTQ_SAMPLES`
+  expNames. Omit the section entirely (or leave it empty) if you have no spliced/unspliced/
+  total RNA readout triplets to combine.
 
 Verified end-to-end on real (subsampled) data from stages 01 through 07.
 
@@ -321,8 +388,13 @@ Verified end-to-end on real (subsampled) data from stages 01 through 07.
   + 48 Exp samples, 48 combos. Derived verbatim from `single_combined/{5ss,CPA,5ss_noP,CPA_noP}.txt`
   + `combos.txt`.
 - `config/introntrip_combined_config.txt` — 8 constructs (A1, B1, C1, D1, E1, H1, B3-6, B3-9):
-  32 Map + 16 Norm + 48 Exp samples, 48 combos. Derived verbatim from
-  `IntronTRIP_combined/{A1,...,B3-9}.txt` + `combos.txt`.
+  32 Map + 16 Norm + 48 Exp samples, 48 combos, plus a 16-row `### SPLICED_UNSPLICED` (stage
+  14). Derived verbatim from `IntronTRIP_combined/{A1,...,B3-9}.txt` + `combos.txt` +
+  `spliced_unspliced.txt`.
+- `config/son_combined_spliced_unspliced.txt` — the real `SON_combined/spliced_unspliced.txt`
+  content, kept standalone since there's no full `SON_combined` config (`### FASTQ_MAPS`/
+  `### COMBOS` etc.) in this repo yet; drop it in as a `### SPLICED_UNSPLICED` section verbatim
+  once one exists.
 
 Both configs use the optional 6th `### FASTQ_MAPS` column, `contamination_batch`, so stage 05 runs
 filterContaminants once per real sequencing run (matching the historical `run3.txt`/`run5.txt` /

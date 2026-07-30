@@ -29,6 +29,7 @@ TRANS2GENE	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genom
 MANE_EXPRESSION	/home/projects/ulitsky/igoru/data/human/ENCODE/K562/K562_1_MANEReadsPerGene.out.tab
 CHROMHMM_BED	/home/projects/ulitsky/shared/data/human/K562_ChromHMM_Kellis_ENCFF319VXX.bed.gz
 SPIN_BED	/home/projects/ulitsky/igoru/R/trip/data/K562_SPIN_25kb_hg38.bed
+SPECKLE_DIR	/home/projects/ulitsky/shared/data/human/speckles/
 
 ### FASTQ_MAPS
 # name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mapName<TAB>contamination_batch
@@ -185,3 +186,30 @@ C1	Norm_C1_1_1_S3	Unspliced_C1_1_1_PolyA_S27	18	FALSE
 C1	Norm_C1_2_1_S4	Unspliced_C1_2_1_PolyA_S28	18	FALSE
 D1	Norm_D1_1_1_S5	Unspliced_D1_1_1_PolyA_S29	18	FALSE
 D1	Norm_D1_2_1_S6	Unspliced_D1_2_1_PolyA_S30	18	FALSE
+
+### SPLICED_UNSPLICED
+# outName<TAB>splicedExpName<TAB>unsplicedExpName<TAB>totalExpName -- stage 14 input,
+# derived verbatim from the real IntronTRIP_combined/spliced_unspliced.txt (including its
+# commented-out rows, preserved as # comments below). All spliced/unspliced/total names
+# already resolve to real ### FASTQ_SAMPLES rows above.
+B3-6_1	TRIP_RNA_spliced_B3-6_1-1_S53	TRIP_RNA_UNS_B3-6_1-1_S59	TRIP_RNA_total_B3-6_1-1_S47
+B3-6_2	TRIP_RNA_spliced_B3-6_2-1_S54	TRIP_RNA_UNS_B3-6_2-1_S60	TRIP_RNA_total_B3-6_2-1_S48
+B3-9_1	TRIP_RNA_spliced_B3-9_1-1_S55	TRIP_RNA_UNS_B3-9_1-1_S61	TRIP_RNA_total_B3-9_1-1_S49
+B3-9_2	TRIP_RNA_spliced_B3-9_2-1_S56	TRIP_RNA_UNS_B3-9_2-1_S62	TRIP_RNA_total_B3-9_2-1_S50
+E1_1	TRIP_RNA_spliced_E1_1-1_S51	TRIP_RNA_UNS_E1_1-1_S57	TRIP_RNA_total_E1_1-1_S45
+E1_2	TRIP_RNA_spliced_E1_2-1_S52	TRIP_RNA_UNS_E1_2-1_S58	TRIP_RNA_total_E1_2-1_S46
+A1_1	IntronTRIP_Spliced_A1_Pool_1_1_S25	IntronTRIP_Unspliced_A1_Pool_1_1_S58	IntronTRIP_Total_A1_Pool_1_1_S62
+A1_2	IntronTRIP_Spliced_A1_Pool_2_1_S26	IntronTRIP_Unspliced_A1_Pool_2_1_S59	IntronTRIP_Total_A1_Pool_2_1_S63
+H1_1	IntronTRIP_Spliced_H1_Pool_1_1_S27	IntronTRIP_Unspliced_H1_Pool_1_1_S60	IntronTRIP_Toal_H1_Pool_1_1_S64
+H1_2	IntronTRIP_Spliced_H1_Pool_2_1_S28	IntronTRIP_Unspliced_H1_Pool_2_1_S61	IntronTRIP_Toal_H1_Pool_2_1_S65
+#A1_1_uns	A1_1-1_UNS_S46	A1_1-1_3intron_S36	A1_1-1_Total_totalRNA_S1
+#B3-6_uns	B3-6_1-1_UNS_S52	B3-6_1-1_3intron_S42	B3-6_1-1_Total_totalRNA_S4
+#B3-9_uns	B3-9_1-1_UNS_S54	B3-9_1-1_3intron_S44	B3-9_1-1_Total_totalRNA_S5
+#E1_uns	E1_1-1_UNS_S48	E1_1-1_3intron_S38	E1_1-1_Total_totalRNA_S2
+#H1_uns	H1_1-1_UNS_S50	H1_1-1_3intron_S40	H1_1-1_Total_totalRNA_S3
+B1_1	Spliced_B1_1_1_PolyA_S19	Unspliced_B1_1_1_PolyA_S25	Total_B1_1_1_PolyA_S13
+B1_2	Spliced_B1_2_1_PolyA_S20	Unspliced_B1_2_1_PolyA_S26	Total_B1_2_1_PolyA_S14
+C1_1	Spliced_C1_1_1_PolyA_S21	Unspliced_C1_1_1_PolyA_S27	Total_C1_1_1_PolyA_S15
+C1_2	Spliced_C1_2_1_PolyA_S22	Unspliced_C1_2_1_PolyA_S28	Total_C1_2_1_PolyA_S16
+D1_1	Spliced_D1_1_1_PolyA_S23	Unspliced_D1_1_1_PolyA_S29	Total_D1_1_1_PolyA_S17
+D1_2	Spliced_D1_2_1_PolyA_S24	Unspliced_D1_2_1_PolyA_S30	Total_D1_2_1_PolyA_S18

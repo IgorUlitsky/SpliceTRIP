@@ -33,6 +33,7 @@ TRANS2GENE	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genom
 MANE_EXPRESSION	/home/projects/ulitsky/igoru/data/human/ENCODE/K562/K562_1_MANEReadsPerGene.out.tab
 CHROMHMM_BED	/home/projects/ulitsky/shared/data/human/K562_ChromHMM_Kellis_ENCFF319VXX.bed.gz
 SPIN_BED	/home/projects/ulitsky/igoru/R/trip/data/K562_SPIN_25kb_hg38.bed
+SPECKLE_DIR	/home/projects/ulitsky/shared/data/human/speckles/
 
 ### FASTQ_MAPS
 # name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mapName<TAB>contamination_batch(optional)
@@ -76,3 +77,16 @@ Exp_total_5ss_noP_pool2_rep2_S80	/home/projects/ulitsky/igoru/data/human/TRIP/ru
 ### COMBOS
 # mapName<TAB>normSample<TAB>expSample<TAB>effLength<TAB>reverseComplement(TRUE|FALSE)<TAB>oneMismatch(optional: yes to enable)
 5ss_noP	Norm_5ss_noP_rep2_S92	Exp_total_5ss_noP_pool2_rep2_S80	18	FALSE
+
+### SPLICED_UNSPLICED
+# Optional -- entirely omit this section (or leave it empty) if you have no spliced/
+# unspliced/total RNA readout triplets to combine; stage 14 is skipped in that case.
+#
+# outName<TAB>splicedExpName<TAB>unsplicedExpName<TAB>totalExpName -- one row per triplet
+# of ### COMBOS expSample names (all three must already have a real ### FASTQ_SAMPLES
+# row and therefore a stage 07 combined_counts.txt). This is the literal content of the
+# real per-dataset spliced_unspliced.txt files (e.g. IntronTRIP_combined/
+# spliced_unspliced.txt) -- see config/introntrip_combined_config.txt for a populated
+# example. Stage 14 (scripts/14_combineSplicedUnsplicedPairs_uniform.R) derives, per row,
+# outName.spliced_unspliced.combined_counts.txt, outName.spliced_to_total.combined_counts.txt,
+# and outName.spliced_and_unspliced_to_total.combined_counts.txt.

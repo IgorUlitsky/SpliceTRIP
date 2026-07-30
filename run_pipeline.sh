@@ -2,10 +2,12 @@
 # =============================================================================
 # TRIP unified pipeline — orchestrator
 # =============================================================================
-# Reads a config text file (see config/example_config.txt) and runs stages 01-11
+# Reads a config text file (see config/example_config.txt) and runs stages 01-14
 # (cutadapt -> bowtie2 -> analyzeTRIPMapping -> filterMappings[+TTAA] ->
 # filterContaminants -> get_genuine_barcodes -> normalizeTRIP[+oneMismatch] ->
-# make_tracks -> gc_content -> table_annotation -> comparePairwiseSharedPositions) in order.
+# combineSplicedUnsplicedPairs[if configured] -> make_tracks -> gc_content ->
+# table_annotation -> comparePairwiseSharedPositions -> annotateTRIP_positions ->
+# annotateTRIPGeneBodies) in order.
 #
 # Usage
 #   bash run_pipeline.sh <config.txt> [target] [threads]
@@ -14,11 +16,13 @@
 #     cutadapt          stage 01 only
 #     mapping           01-02 (Map-mode samples only)
 #     genuine_barcodes  01-06
-#     combined_counts   01-07 (everything needed for combined_counts.txt) ★ pipeline's main deliverable
-#     annotated         01-11 (adds per-construct annotated_tables.txt -- MANE/gencode/
-#                        repeats/ChromHMM/SPIN/GC -- and a pairwise shared-position
-#                        comparison across every ### FASTQ_MAPS construct; independent of
-#                        stage 07, runs alongside it)
+#     combined_counts   01-07 (everything needed for combined_counts.txt) ★ pipeline's main
+#                        deliverable, plus stage 14 if ### SPLICED_UNSPLICED has rows
+#     annotated         01-14 (adds per-construct annotated_tables.txt -- MANE/gencode/
+#                        repeats/ChromHMM/SPIN/GC --, a pairwise shared-position
+#                        comparison across every ### FASTQ_MAPS construct, and per-construct
+#                        QC/gene-body positional-correlation reports; independent of stage
+#                        07, runs alongside it)
 #
 # Every stage writes into the CURRENT directory (matching each stage script's own
 # convention of writing next to its inputs) -- run this from wherever you want the
@@ -56,7 +60,7 @@ echo
 PARSED=$(mktemp -d)
 trap 'rm -rf "$PARSED"' EXIT
 
-for section in GLOBAL FASTQ_MAPS FASTQ_NORM FASTQ_SAMPLES COMBOS; do
+for section in GLOBAL FASTQ_MAPS FASTQ_NORM FASTQ_SAMPLES COMBOS SPLICED_UNSPLICED; do
   awk -v s="### $section" '
     $0==s {grab=1; next}
     /^### /{grab=0}
@@ -90,6 +94,7 @@ TRANS2GENE=${TRANS2GENE:-}
 MANE_EXPRESSION=${MANE_EXPRESSION:-}
 CHROMHMM_BED=${CHROMHMM_BED:-}
 SPIN_BED=${SPIN_BED:-}
+SPECKLE_DIR=${SPECKLE_DIR:-}
 
 echo "--- GLOBAL settings ---"
 echo "BARCODE_LEN=$BARCODE_LEN  CONT_FACTOR=$CONT_FACTOR  TTAA_BED=${TTAA_BED:-<off>}  DPNII_BED=${DPNII_BED:-<script default>}"
@@ -98,6 +103,7 @@ if [ "$TARGET" = "annotated" ]; then
   echo "MANE_BED=${MANE_BED:-<script default>}  MANE_INTRONS_BED=${MANE_INTRONS_BED:-<script default>}  GENCODE_NONCODING_BED=${GENCODE_NONCODING_BED:-<script default>}"
   echo "REPEATS_BED=${REPEATS_BED:-<script default>}  CHROM_SIZES=${CHROM_SIZES:-<script default>}  GENOME_FASTA=${GENOME_FASTA:-<script default>}"
   echo "TRANS2GENE=${TRANS2GENE:-<script default>}  MANE_EXPRESSION=${MANE_EXPRESSION:-<script default>}  CHROMHMM_BED=${CHROMHMM_BED:-<script default>}  SPIN_BED=${SPIN_BED:-<script default>}"
+  echo "SPECKLE_DIR=${SPECKLE_DIR:-<script default>}"
 fi
 echo
 
@@ -231,6 +237,19 @@ done < "$PARSED/COMBOS.tsv"
 echo
 echo "=== combined_counts.txt written for each ### COMBOS row ==="
 
+# =============================================================================
+# Stage 14: combineSplicedUnsplicedPairs -- optional, only if ### SPLICED_UNSPLICED has
+# rows. Depends on stage 07's combined_counts.txt (the spliced/unspliced/total triplets
+# it names), so it runs for both "combined_counts" and "annotated" targets, right after
+# stage 07 -- unlike stages 08-13, which only need stage 06 and are annotated-only.
+# =============================================================================
+if [ -s "$PARSED/SPLICED_UNSPLICED.tsv" ]; then
+  echo "=== Stage 14: combineSplicedUnsplicedPairs (spliced/unspliced/total ratio files) ==="
+  cp "$PARSED/SPLICED_UNSPLICED.tsv" "$WORK/spliced_unspliced.txt"
+  Rscript "$SCRIPTS/14_combineSplicedUnsplicedPairs_uniform.R" "$WORK/"
+  echo
+fi
+
 if [ "$TARGET" != "annotated" ]; then echo "target=combined_counts reached, stopping."; exit 0; fi
 
 # =============================================================================
@@ -283,6 +302,34 @@ awk -F'\t' '{print $1"\t"$3}' "$PARSED/COMBOS.tsv" > "$EXPLIST"
 ALLMAPNAMES=$(echo "$MAPNAMES" | paste -sd,)
 Rscript "$SCRIPTS/11_comparePairwiseSharedPositions_uniform.R" "$WORK/" "$ALLMAPNAMES" \
   "$(basename "$EXPLIST")" "plots/pairwise_shared_positions.pdf"
+echo
+
+# =============================================================================
+# Stages 12-13: per-construct QC (annotateTRIP_positions) and gene-body positional
+# correlations (annotateTRIPGeneBodies) -- one run PER ### FASTQ_MAPS mapName, unlike
+# stage 11's whole-list call. Each needs a single-column namesExp_file (one <expName>
+# per line, no mapName prefix -- different from stage 11's expListFile), built here from
+# ### COMBOS' rows for that one mapName (3rd column, expSample).
+# =============================================================================
+echo "=== Stage 12: annotateTRIP_positions (per-construct QC) ==="
+while read -r mapName; do
+  [ -z "$mapName" ] && continue
+  NAMESEXP="$WORK/.pipeline_namesExp.${mapName}.txt"
+  awk -F'\t' -v m="$mapName" '$1==m{print $3}' "$PARSED/COMBOS.tsv" > "$NAMESEXP"
+  echo "-- $mapName ($(wc -l < "$NAMESEXP") expression sample(s)) --"
+  Rscript "$SCRIPTS/12_annotateTRIP_positions_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
+    "$(basename "$NAMESEXP")" "plots/annotateTRIP_positions_${mapName}.pdf"
+done <<< "$MAPNAMES"
+echo
+
+echo "=== Stage 13: annotateTRIPGeneBodies (per-construct positional correlations) ==="
+while read -r mapName; do
+  [ -z "$mapName" ] && continue
+  NAMESEXP="$WORK/.pipeline_namesExp.${mapName}.txt"
+  echo "-- $mapName ($(wc -l < "$NAMESEXP") expression sample(s)) --"
+  Rscript "$SCRIPTS/13_annotateTRIPGeneBodies_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
+    "$(basename "$NAMESEXP")" "plots/annotateTRIPGeneBodies_${mapName}.pdf" "$SPECKLE_DIR"
+done <<< "$MAPNAMES"
 
 echo
-echo "=== done: <mapName>.txt.annotated_tables.txt written for each construct; pairwise_shared_positions.pdf written ==="
+echo "=== done: <mapName>.txt.annotated_tables.txt written for each construct; pairwise_shared_positions.pdf, annotateTRIP_positions_<mapName>.pdf, and annotateTRIPGeneBodies_<mapName>.pdf written ==="
