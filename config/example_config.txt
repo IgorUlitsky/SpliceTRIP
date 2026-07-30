@@ -1,0 +1,41 @@
+# TRIP unified pipeline — example configuration
+#
+# Plain text, split into ### SECTIONS. Lines starting with # are comments; blank lines
+# are ignored. Fields are tab-separated within each section.
+#
+# This example matches the bundled example_data/ (from trip-pipeline), so the whole
+# pipeline can be run end-to-end on it as a smoke test.
+
+### GLOBAL
+# key<TAB>value
+BARCODE_LEN	18
+BOWTIE2_INDEX	/home/projects/ulitsky/shared/data/human/sequence/bowtie2/hg38
+CONT_FACTOR	30
+# Leave TTAA_BED blank (or comment the line out) to skip TTAA filtering entirely.
+TTAA_BED	/home/projects/ulitsky/igoru/data/human/hg38_ttaa.bed
+R1_PRIMER	AGAAGTTCAACTCGGTACCAGAGCCACC
+R1_SUFFIX	GGATC
+R2_PRIMER	GTACGTCACAATATGATTATCTTTCTAGGGTTAA
+
+### SAMPLES
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mode(map|count)<TAB>contamination_group(map mode only; "-" for count mode)
+#
+# path_prefix is the path *including* the sample name, WITHOUT the R1/R2 suffix, e.g. for
+#   /home/projects/ulitsky/igoru/data/human/TRIP/run3/Map_CPA_noP_rep1_S93_R1_001.fastq.gz
+# path_prefix = /home/projects/ulitsky/igoru/data/human/TRIP/run3/Map_CPA_noP_rep1_S93
+# and r1_suffix/r2_suffix = _R1_001.fastq.gz / _R2_001.fastq.gz
+Map_5ss_noP_pool1_rep2_S166	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_5ss_noP_pool1_rep2_S166	_R1_001.fastq.gz	_R2_001.fastq.gz	map	5ss_noP
+Map_CPA_noP_pool1_rep2_S164	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Map_CPA_noP_pool1_rep2_S164	_R1_001.fastq.gz	_R2_001.fastq.gz	map	CPA_noP
+Norm_5ss_noP_rep2_S92	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Norm_5ss_noP_rep2_S92	_R1_001.fastq.gz	_R2_001.fastq.gz	count	-
+Exp_total_5ss_noP_pool2_rep2_S80	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Exp_total_5ss_noP_pool2_rep2_S80	_R1_001.fastq.gz	_R2_001.fastq.gz	count	-
+
+### MAPS
+# mapName<TAB>comma-separated list of map-mode SAMPLE names (from ### SAMPLES) to combine
+# into this one genuine-barcode map. One-to-many: a mapName is usually built from several
+# replicate Map_* samples.
+5ss_noP	Map_5ss_noP_pool1_rep2_S166
+CPA_noP	Map_CPA_noP_pool1_rep2_S164
+
+### COMBOS
+# mapName<TAB>normSample<TAB>expSample<TAB>effLength<TAB>reverseComplement(TRUE|FALSE)<TAB>oneMismatch(optional: yes to enable)
+5ss_noP	Norm_5ss_noP_rep2_S92	Exp_total_5ss_noP_pool2_rep2_S80	18	FALSE
