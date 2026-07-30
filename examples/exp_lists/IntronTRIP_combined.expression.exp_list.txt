@@ -1,0 +1,16 @@
+A1	IntronTRIP_Total_A1_Pool_1_1_S62
+A1	IntronTRIP_Total_A1_Pool_2_1_S63
+H1	IntronTRIP_Toal_H1_Pool_1_1_S64
+H1	IntronTRIP_Toal_H1_Pool_2_1_S65
+B3-6	TRIP_RNA_total_B3-6_1-1_S47
+B3-6	TRIP_RNA_total_B3-6_2-1_S48
+B3-9	TRIP_RNA_total_B3-9_1-1_S49
+B3-9	TRIP_RNA_total_B3-9_2-1_S50
+E1	TRIP_RNA_total_E1_1-1_S45
+E1	TRIP_RNA_total_E1_2-1_S46
+B1	Total_B1_1_1_PolyA_S13
+B1	Total_B1_2_1_PolyA_S14
+C1	Total_C1_1_1_PolyA_S15
+C1	Total_C1_2_1_PolyA_S16
+D1	Total_D1_1_1_PolyA_S17
+D1	Total_D1_2_1_PolyA_S18
