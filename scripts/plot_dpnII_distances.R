@@ -11,7 +11,7 @@
 # elsewhere in this pipeline for TTAA enrichment checks.
 #
 # Usage
-#   Rscript plot_dpnII_distances.R <path> <distFiles> <ttaaBedPath> <dpniiBedPath> <outPdf> [nSample]
+#   Rscript plot_dpnII_distances.R <path> <distFiles> <ttaaBedPath> <dpniiBedPath> <gapsBedPath> <outPdf> [nSample]
 #
 #   path         directory containing both the *.dnpII_dists.txt file(s) and where outPdf
 #                is written (unless outPdf is an absolute path)
@@ -19,6 +19,11 @@
 #                e.g. a single mapName's file, or several pooled into one histogram
 #   ttaaBedPath  hg38 TTAA reference bed (same format/file as stage 04's TTAA filter)
 #   dpniiBedPath hg38 DpnII digest-fragment bed (same file stage 06 reads)
+#   gapsBedPath  hg38 assembly-gaps bed (chrom, start, end -- N stretches/unassembled
+#                regions), used to drop any (site, downstream DpnII site) pair with a gap
+#                physically between them, since the "nearest downstream DpnII site" the
+#                reference reports for those is not meaningful (the true nearest site, if
+#                any, could be on the far side of unknown/unassembled sequence)
 #   outPdf       output PDF path
 #   nSample      number of random TTAA sites to sample for the background (default 10000)
 # =============================================================================
@@ -27,6 +32,7 @@ path = "/home/projects/ulitsky/shared/data/human/TRIP/single_combined/"
 distFiles = "5ss_noP.txt.retained_barcodes_genuine.dnpII_dists.txt"
 ttaaBedPath = "/home/projects/ulitsky/igoru/data/human/hg38_ttaa.bed"
 dpniiBedPath = "/home/projects/ulitsky/igoru/data/human/hg38_dpnii.bed"
+gapsBedPath = "/home/projects/ulitsky/igoru/data/human/hg38.gaps.bed.gz"
 outPdf = "plots/dpnII_distances.pdf"
 nSample = 10000
 
@@ -36,8 +42,9 @@ if (length(myArgs) > 0) {
   distFiles = myArgs[2]
   ttaaBedPath = myArgs[3]
   dpniiBedPath = myArgs[4]
-  outPdf = myArgs[5]
-  if (length(myArgs) >= 6) nSample = as.integer(myArgs[6])
+  gapsBedPath = myArgs[5]
+  outPdf = myArgs[6]
+  if (length(myArgs) >= 7) nSample = as.integer(myArgs[7])
 }
 
 set.seed(1)
@@ -69,6 +76,27 @@ nearestDownstreamDpnII <- function(chrom, pos, strand, byChrom)
   }
 }
 
+# Assembly gaps (N stretches / unassembled sequence): a (site, downstream DpnII site) pair
+# whose interval spans a real gap is dropped rather than trusted, regardless of its
+# distance -- the reference genuinely has no sequence there, so "nearest downstream DpnII
+# site" is not a meaningful measurement for that pair.
+print(paste("Loading assembly gaps from", gapsBedPath))
+gapsCon = if (grepl("\\.gz$", gapsBedPath)) gzfile(gapsBedPath) else gapsBedPath
+gaps = read.table(gapsCon, sep = "\t", stringsAsFactors = FALSE)[, 1:3]
+colnames(gaps) = c("chrom","start","end")
+gapsByChrom = split(gaps[, c("start","end")], gaps$chrom)
+print(paste("Loaded", nrow(gaps), "assembly gaps on", length(gapsByChrom), "contigs"))
+
+hasGapBetween <- function(chrom, pos, strand, dist, byChrom)
+{
+  if (is.na(dist)) return(FALSE)
+  g = byChrom[[chrom]]
+  if (is.null(g)) return(FALSE)
+  if (strand == "+") { segStart = pos; segEnd = pos + dist }
+  else { segStart = pos - dist; segEnd = pos }
+  any(g$start < segEnd & g$end > segStart)
+}
+
 # A handful of distances come out implausibly large (multi-kb to tens of kb) -- almost
 # certainly assembly gaps (N stretches) or other low-complexity/repeat-masked regions
 # where the reference genuinely has no GATC for a long stretch, not a real biological
@@ -90,8 +118,12 @@ print(paste0("Expected by-chance DpnII spacing at ", genomeGC*100, "% GC (no Ns)
 # --- Real distances: pool every listed dnpII_dists.txt file ---
 print("Loading real barcode DpnII distances")
 realTabs = lapply(strsplit(distFiles, ",")[[1]], function(f) read.table(paste0(path, f), sep = "\t", header = TRUE, stringsAsFactors = FALSE))
-realDist = unlist(lapply(realTabs, function(t) t$dpnII_dist))
-realDist = realDist[!is.na(realDist) & realDist <= maxPlausibleDist]
+realAll = do.call(rbind, realTabs)
+realGapped = mapply(hasGapBetween, realAll$chr, realAll$start, realAll$strand, realAll$dpnII_dist,
+                     MoreArgs = list(byChrom = gapsByChrom))
+print(paste(sum(realGapped, na.rm = TRUE), "real distances dropped for spanning an assembly gap"))
+realDist = realAll$dpnII_dist
+realDist = realDist[!is.na(realDist) & realDist <= maxPlausibleDist & !realGapped]
 print(paste(length(realDist), "real genuine-barcode distances loaded"))
 
 # --- Background: nSample random TTAA sites, random strand, same distance metric ---
@@ -105,7 +137,9 @@ randChrom = ttaa$chrom[sampleIdx]
 randPos = ttaa$start[sampleIdx]
 randStrand = sample(c("+","-"), length(sampleIdx), replace = TRUE)
 randDist = mapply(nearestDownstreamDpnII, randChrom, randPos, randStrand, MoreArgs = list(byChrom = dpniiByChrom))
-randDist = randDist[!is.na(randDist) & randDist <= maxPlausibleDist]
+randGapped = mapply(hasGapBetween, randChrom, randPos, randStrand, randDist, MoreArgs = list(byChrom = gapsByChrom))
+print(paste(sum(randGapped, na.rm = TRUE), "random-TTAA distances dropped for spanning an assembly gap"))
+randDist = randDist[!is.na(randDist) & randDist <= maxPlausibleDist & !randGapped]
 print(paste(length(randDist), "random-TTAA background distances computed"))
 
 print(paste("Real: median", median(realDist), " mean", round(mean(realDist),1)))
