@@ -47,15 +47,16 @@ tabStarts=subset(tabStarts,tabStarts$AlignLen>=minAlignLen & tabStarts$AlignLen<
 print(paste(nrow(tabStarts),"valid length alignments"))
 
 # Fixed for 2nd read
-# Minus-strand position uses V3-1 (the "V3-1" convention), not V3 -- BED end (V3) is
-# exclusive/half-open, so the last actually-aligned base (the true insertion-site
-# coordinate on this strand) is V3-1, not V3. Empirically confirmed against the real hg38
-# TTAA reference: with the V3-1 correction, tt=Start+1 (stage 04) recovers the same ~94%
-# minus-strand TTAA hit rate as the uncorrected V3/tt=Start combination -- they encode the
-# identical true site, just offset by the same 1bp in opposite directions. Changing this
-# line requires the matching change in stage 04 (tt=Start+1 instead of tt=Start) or the
-# TTAA filter silently drops ~99.9% of genuine minus-strand integrations (measured).
-tabStarts$Start = ifelse(tabStarts$V6=="+",tabStarts$V2,tabStarts$V3-1)
+# Minus-strand position uses V3 (not V3-1). A prior version of this line used V3-1 on the
+# theory that BED end is exclusive so V3-1 is the "true last aligned base" -- reverted after
+# it turned out to be wrong. Verified directly against real, already-computed
+# .barcodes.bed files (run3/5ss_Map_rep1_S81, run3/CPA_Map_rep3_S80) and the real hg38 TTAA
+# reference: with V3 (this line, tt=Start in stage 04), minus-strand hit rate is ~61-69%,
+# matching the plus strand's own ~58-70% baseline; with V3-1 and the "matching" tt=Start+1,
+# minus-strand hit rate collapses to ~1.6-1.9%. This also matches both igoru's own current
+# production script (lidiag/R/scripts/analyzeTRIPMapping_uniform.R) and the original,
+# unmodified ArtyomTyukaev/trip-pipeline script -- both use plain V3, never V3-1.
+tabStarts$Start = ifelse(tabStarts$V6=="+",tabStarts$V2,tabStarts$V3)
 tabStarts$Length = tabStarts$V3-tabStarts$V2
 tabBarcodes$V1=substr(tabBarcodes$V1,2,1000)
 print("Merging by read name")

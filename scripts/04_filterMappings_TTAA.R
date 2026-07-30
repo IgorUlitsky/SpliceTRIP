@@ -79,22 +79,20 @@ for (chr in names(spCountTab))
   chrBed=chrBed[order(chrBed$V2,chrBed$V6),]
 
   # ===== NEW BLOCK (TTAA filter) — per-row TTAA membership on the SORTED chrTab
-  # + strand: TTAA starts at V2-4 ;  - strand: TTAA starts at V2+1   (0-based, strand-aware).
+  # + strand: TTAA starts at V2-4 ;  - strand: TTAA starts at V2   (0-based, strand-aware).
   # ttaaOK is index-aligned to chrTab, i.e. to loop variable i below. Exact match, no window.
-  # NOTE (minus-strand offset, V2+1 not V2): this pipeline's stage 03 records the
-  # minus-strand position as V3-1 (the "V3-1" convention -- the last aligned base, since
-  # BED end is exclusive), not V3. Empirically verified against the real hg38 TTAA
-  # reference on real data: with a V3-1-produced barcodes.bed, tt=V2 gives a 0.09% hit
-  # rate (i.e. broken) while tt=V2+1 gives ~94% -- matching the "+" strand's own hit rate
-  # and confirming V2+1 recovers the correct site. If stage 03 is ever swapped back to the
-  # uncorrected V3 convention, this must revert to tt=V2 (its own matching offset).
+  # This matches stage 03's V2/Start = V3 convention for minus-strand alignments (not V3-1 --
+  # a V3-1 variant was tried and reverted; see stage 03's comment). Verified directly against
+  # real .barcodes.bed files and the real hg38 TTAA reference: tt=V2 (this line) gives a
+  # ~61-69% minus-strand hit rate matching the plus strand's own ~58-70% baseline; tt=V2+1
+  # (what a V3-1-produced Start would require) collapses to ~1.6-1.9%.
   if (ttaaFilter) {
     vec = ttaaByChrom[[chr]]                                    # sorted 0-based TTAA starts (NULL if contig absent)
     if (is.null(vec)) {
       print(paste("  WARNING: no TTAA sites for", chr, "-> all its positions will be dropped"))
       ttaaOK = rep(FALSE, nrow(chrTab))
     } else {
-      tt = ifelse(chrTab$V6 == "+", chrTab$V2 - 4L, chrTab$V2 + 1L) # expected TTAA start
+      tt = ifelse(chrTab$V6 == "+", chrTab$V2 - 4L, chrTab$V2) # expected TTAA start
       ttaaOK = tt %in% vec
     }
   } else {

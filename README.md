@@ -83,10 +83,11 @@ aggregate counts) and `<name>.barcodes.bed` (same positions in BED6 for genome b
 `barcodeLen` (4th arg, default 18 if omitted; `run_pipeline.sh` always passes `BARCODE_LEN`)
 controls the exact-length filter applied to barcodes before they're kept.
 
-Minus-strand position uses the `Start = V3-1` convention (BED end is exclusive/half-open,
-so the true last-aligned base is `V3-1`, not `V3`) — this is a deliberate, empirically
-verified fix over the original `trip-pipeline` behaviour; see "Resolved discrepancies"
-below.
+Minus-strand position uses plain `Start = V3` (matching both igoru's own current
+`analyzeTRIPMapping_uniform.R` and the original, unmodified `trip-pipeline` script). An
+earlier version of this repo used `V3-1` instead, on the theory that BED end is exclusive
+so `V3-1` is the "true last aligned base" — reverted after real-data TTAA verification
+showed it was wrong; see stage 04 and "Resolved discrepancies" below.
 
 ### [04] filterMappings (+ optional TTAA filter) — `scripts/04_filterMappings_TTAA.R <path> <name> [ttaaFilter <ttaa_bed>]`
 
@@ -103,7 +104,7 @@ Optional **TTAA filter** (piggyBac integrates exclusively at `TTAA` sites, so a 
 that isn't adjacent to a real genomic `TTAA` is very likely a mapping artefact): pass
 `ttaaFilter <ttaa_bed_path>` (a 6-col BED like `hg38_ttaa.bed`) as extra args to require
 each surviving position to sit exactly at a known TTAA (strand-aware offset: `+` strand
-checks `V2-4`, `-` strand checks `V2+1` given stage 03's `V3-1` convention). Off by
+checks `V2-4`, `-` strand checks `V2`, matching stage 03's plain-`V3` convention). Off by
 default; enabled pipeline-wide by setting `TTAA_BED` in `### GLOBAL`.
 
 ### [05] filterContaminants — `scripts/05_filterContaminants_uniform.R <path> <fileList> [contFactor]`
@@ -204,15 +205,22 @@ that stage 01's `count` mode is a parameterised template of.
 ## Resolved from the two repos' open discrepancies
 
 1. **Stage 03 `barcodes_poses.txt` column count.** Kept the alignment-`Length` column (10 cols from
-   stage 03, 12 after stage 04 adds `MaxCount`/`TopBarcode`) rather than dropping it. Stage 05's
-   `ncol` check and column-index references (`Barcodes` col 9->10, `MaxCount` col 10->11) were
-   updated to match — a plain "just check for 12" fix alone would have silently read the wrong
-   columns.
-2. **`analyzeTRIPMapping` minus-strand position: "V3-1", not "V3".** `Start = V3-1` (not `V3`) for
-   `-`-strand alignments — BED end is exclusive, so `V3-1` is the actual last aligned base.
-   Verified empirically against the real hg38 TTAA reference on real data: with `V3-1`, stage 04's
-   minus-strand TTAA offset must be `tt = Start+1` (not `tt = Start`), or the TTAA filter drops
-   ~99.9% of genuine minus-strand integrations instead of the expected ~94% hit rate.
+   stage 03, 12 after stage 04 adds `MaxCount`/`TopBarcode`) rather than dropping it, matching
+   `ArtyomTyukaev/trip-pipeline`'s version. Stage 05's `ncol` check and column-index references
+   (`Barcodes` col 9->10, `MaxCount` col 10->11) were updated to match — a plain "just check for 12"
+   fix alone would have silently read the wrong columns. Note: igoru's own current
+   `analyzeTRIPMapping_uniform.R` doesn't have this column at all (9 cols, no `Length`) — this was a
+   deliberate choice to follow Artyom's addition rather than igoru's leaner original, since the extra
+   column is purely informational and doesn't change any filtering logic.
+2. **`analyzeTRIPMapping` minus-strand position.** ~~An earlier version of this repo used
+   `Start = V3-1` instead of `V3` for `-`-strand alignments~~ — **retracted.** That change (and the
+   matching `tt = Start+1` in stage 04) was verified only by internal self-consistency, not against
+   real production data, and turned out to be wrong: cross-checked directly against real,
+   already-computed `.barcodes.bed` files (`run3/5ss_Map_rep1_S81`, `run3/CPA_Map_rep3_S80`) and the
+   real hg38 TTAA reference, plain `V3`/`tt = Start` gives a ~58-70% minus-strand TTAA hit rate
+   (matching the `+`-strand baseline), while `V3-1`/`tt = Start+1` collapses to ~1.6-1.9%. Both
+   igoru's own `analyzeTRIPMapping_uniform.R` and the original, unmodified `trip-pipeline` script use
+   plain `V3` — there was never an actual discrepancy here to resolve.
 
 ## Notable differences from `ArtyomTyukaev/trip-pipeline`
 
