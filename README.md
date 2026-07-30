@@ -391,21 +391,28 @@ Verified end-to-end on real (subsampled) data from stages 01 through 07.
   32 Map + 16 Norm + 48 Exp samples, 48 combos, plus a 16-row `### SPLICED_UNSPLICED` (stage
   14). Derived verbatim from `IntronTRIP_combined/{A1,...,B3-9}.txt` + `combos.txt` +
   `spliced_unspliced.txt`.
-- `config/son_combined_spliced_unspliced.txt` — the real `SON_combined/spliced_unspliced.txt`
-  content, kept standalone since there's no full `SON_combined` config (`### FASTQ_MAPS`/
-  `### COMBOS` etc.) in this repo yet; drop it in as a `### SPLICED_UNSPLICED` section verbatim
-  once one exists.
+- `config/son_combined_config.txt` — 3 constructs (A1, B3-9, E1), a speckle knock-sideways
+  (SON-FKBP/Protac) experiment: 11 Map + 6 Norm + 108 Exp samples, 108 combos, plus a 36-row
+  `### SPLICED_UNSPLICED`. Derived verbatim from `SON_combined/{SON_A1,SON_B3_9,SON_E1}.txt` +
+  `combos.txt` + `spliced_unspliced.txt`. Note: `Map_SON_B3_9_2_2_S70` (present in `LP_run1`
+  and in the contamination fileList/the alternate, unreferenced `SON_B3.txt`) is excluded here
+  too, matching the real `SON_B3_9.txt` manifest that `combos.txt` actually uses — only 3 of
+  the 4 real B3-9 map samples ever fed the genuine-barcode map. All 11 Map samples are a
+  single contamination batch (`LP_run1`), confirmed against the real `LP_run1/SON.txt`
+  fileList.
+- `config/son_combined_spliced_unspliced.txt` — superseded by the `### SPLICED_UNSPLICED`
+  section in `son_combined_config.txt` above; kept only because it predates that config.
 
-Both configs use the optional 6th `### FASTQ_MAPS` column, `contamination_batch`, so stage 05 runs
-filterContaminants once per real sequencing run (matching the historical `run3.txt`/`run5.txt` /
-`IntronTRIP_run{2,3,4}.txt` fileLists) rather than pooling every map sample across runs into one
-comparison — index-hopping contamination can only happen between samples multiplexed together on
-the same flowcell.
+All three configs use the optional 6th `### FASTQ_MAPS` column, `contamination_batch`, so stage
+05 runs filterContaminants once per real sequencing run (matching the historical
+`run3.txt`/`run5.txt` / `IntronTRIP_run{2,3,4}.txt` / `LP_run1/SON.txt` fileLists) rather than
+pooling every map sample across runs into one comparison — index-hopping contamination can only
+happen between samples multiplexed together on the same flowcell.
 
 See `docs/count_exp_reference.md` for the real historical `cut_norm.csh`/`count_exp.csh` commands
 that stage 01's `count` mode is a parameterised template of.
 
-Both configs also set `DPNII_BED` (see stage 06 above) to the real hg38 DpnII digest map.
+All three configs also set `DPNII_BED` (see stage 06 above) to the real hg38 DpnII digest map.
 
 ## Resolved from the two repos' open discrepancies
 

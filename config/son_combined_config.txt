@@ -1,0 +1,322 @@
+# TRIP unified pipeline — SON_combined production config
+#
+# Real dataset: 3 constructs (A1, B3-9, E1) in a speckle knock-sideways (SON-FKBP/Protac)
+# experiment -- DMSO (control) vs Protac (speckle-depleted) conditions, Spliced/Unspliced/
+# Total RNA readouts, some with rep2/rep3 reruns. All 11 Map libraries were sequenced
+# together in one run (LP_run1) -- confirmed against the real LP_run1/SON.txt fileList
+# (name<TAB>group, single contamination batch). Note: SON_B3_9.txt (the manifest combos.txt
+# actually references) has only 3 of the 4 real B3-9 map samples --
+# Map_SON_B3_9_2_2_S70 is present in LP_run1 and in the contamination fileList/SON_B3.txt
+# (an alternate, unreferenced manifest) but was excluded from the real, actually-used
+# genuine-barcode map; excluded here too to match what combos.txt actually uses, rather
+# than the broader SON_B3.txt.
+# Derived directly from the real
+# /home/projects/ulitsky/shared/data/human/TRIP/SON_combined/{SON_A1,SON_B3_9,SON_E1}.txt
+# manifests, combos.txt (108 rows, verbatim), and spliced_unspliced.txt (36 rows, verbatim).
+
+### GLOBAL
+BARCODE_LEN	18
+BOWTIE2_INDEX	/home/projects/ulitsky/shared/data/human/sequence/bowtie2/hg38
+CONT_FACTOR	10
+TTAA_BED	/home/projects/ulitsky/igoru/data/human/hg38_ttaa.bed
+DPNII_BED	/home/projects/ulitsky/igoru/data/human/hg38_dpnii.bed
+R1_PRIMER	AGAAGTTCAACTCGGTACCAGAGCCACC
+R1_SUFFIX	GGATC
+R2_PRIMER	GTACGTCACAATATGATTATCTTTCTAGGGTTAA
+MANE_BED	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genomic.bed
+MANE_INTRONS_BED	/home/projects/ulitsky/lidiag/genomic_data/GCF_000001405.40_GRCh38.p14_MANE_introns_new_format.bed
+GENCODE_NONCODING_BED	/home/projects/ulitsky/lidiag/genomic_data/gencode.v46.annotation.noncoding.bed
+REPEATS_BED	/home/projects/ulitsky/lidiag/genomic_data/hg38.repeats.bed
+CHROM_SIZES	/home/projects/ulitsky/shared/ucsctracks/hg38/hg38.chrom.sizes
+GENOME_FASTA	/home/projects/ulitsky/lidiag/genomic_data/hg38.fa
+TRANS2GENE	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genomic.trans2gene.txt
+MANE_EXPRESSION	/home/projects/ulitsky/igoru/data/human/ENCODE/K562/K562_1_MANEReadsPerGene.out.tab
+CHROMHMM_BED	/home/projects/ulitsky/shared/data/human/K562_ChromHMM_Kellis_ENCFF319VXX.bed.gz
+SPIN_BED	/home/projects/ulitsky/igoru/R/trip/data/K562_SPIN_25kb_hg38.bed
+SPECKLE_DIR	/home/projects/ulitsky/shared/data/human/speckles/
+
+### FASTQ_MAPS
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mapName<TAB>contamination_batch
+Map_SON_A1_1_1_S59	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_A1_1_1_S59	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_A1	LP_run1
+Map_SON_A1_1_2_S60	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_A1_1_2_S60	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_A1	LP_run1
+Map_SON_A1_2_1_S61	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_A1_2_1_S61	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_A1	LP_run1
+Map_SON_A1_2_2_S62	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_A1_2_2_S62	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_A1	LP_run1
+Map_SON_B3_9_1_1_S67	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_B3_9_1_1_S67	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B3_9	LP_run1
+Map_SON_B3_9_1_2_S68	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_B3_9_1_2_S68	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B3_9	LP_run1
+Map_SON_B3_9_2_1_S69	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_B3_9_2_1_S69	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B3_9	LP_run1
+Map_SON_E1_1_1_S63	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_E1_1_1_S63	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_E1	LP_run1
+Map_SON_E1_1_2_S64	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_E1_1_2_S64	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_E1	LP_run1
+Map_SON_E1_2_1_S65	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_E1_2_1_S65	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_E1	LP_run1
+Map_SON_E1_2_2_S66	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Map_SON_E1_2_2_S66	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_E1	LP_run1
+
+### FASTQ_NORM
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix
+Norm_SON_A1_1_S53	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Norm_SON_A1_1_S53	_R1_001.fastq.gz	_R2_001.fastq.gz
+Norm_SON_A1_2_S54	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Norm_SON_A1_2_S54	_R1_001.fastq.gz	_R2_001.fastq.gz
+Norm_SON_B3_9_1_S57	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Norm_SON_B3_9_1_S57	_R1_001.fastq.gz	_R2_001.fastq.gz
+Norm_SON_B3_9_2_S58	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Norm_SON_B3_9_2_S58	_R1_001.fastq.gz	_R2_001.fastq.gz
+Norm_SON_E1_1_S55	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Norm_SON_E1_1_S55	_R1_001.fastq.gz	_R2_001.fastq.gz
+Norm_SON_E1_2_S56	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run1/Norm_SON_E1_2_S56	_R1_001.fastq.gz	_R2_001.fastq.gz
+
+### FASTQ_SAMPLES
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix
+SON_TRIP_A1_1_1_DMSO_Spliced_Rep2_S24	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_DMSO_Spliced_Rep2_S24	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_DMSO_Spliced_Rep3_S28	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_DMSO_Spliced_Rep3_S28	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_DMSO_Total_Rep2_S16	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_DMSO_Total_Rep2_S16	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_DMSO_Total_Rep3_S20	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_DMSO_Total_Rep3_S20	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_DMSO_Unspliced_Rep2_S32	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_DMSO_Unspliced_Rep2_S32	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_DMSO_Unspliced_Rep3_S36	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_DMSO_Unspliced_Rep3_S36	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_Protac_Spliced_Rep2_S26	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_Protac_Spliced_Rep2_S26	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_Protac_Spliced_Rep3_S30	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_Protac_Spliced_Rep3_S30	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_Protac_Total_Rep2_S18	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_Protac_Total_Rep2_S18	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_Protac_Total_Rep3_S22	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_Protac_Total_Rep3_S22	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_Protac_Unspliced_Rep2_S34	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_Protac_Unspliced_Rep2_S34	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_1_1_Protac_Unspliced_Rep3_S38	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_1_1_Protac_Unspliced_Rep3_S38	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_DMSO_Spliced_Rep2_S25	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_DMSO_Spliced_Rep2_S25	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_DMSO_Spliced_Rep3_S29	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_DMSO_Spliced_Rep3_S29	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_DMSO_Total_Rep2_S17	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_DMSO_Total_Rep2_S17	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_DMSO_Total_Rep3_S21	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_DMSO_Total_Rep3_S21	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_DMSO_Unspliced_Rep2_S33	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_DMSO_Unspliced_Rep2_S33	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_DMSO_Unspliced_Rep3_S37	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_DMSO_Unspliced_Rep3_S37	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_Protac_Spliced_Rep2_S27	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_Protac_Spliced_Rep2_S27	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_Protac_Spliced_Rep3_S31	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_Protac_Spliced_Rep3_S31	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_Protac_Total_Rep2_S19	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_Protac_Total_Rep2_S19	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_Protac_Total_Rep3_S23	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_Protac_Total_Rep3_S23	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_Protac_Unspliced_Rep2_S35	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_Protac_Unspliced_Rep2_S35	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_A1_2_1_Protac_Unspliced_Rep3_S39	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run2/SON_TRIP_A1_2_1_Protac_Unspliced_Rep3_S39	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_DMSO_Spliced_Rep2_S63	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_DMSO_Spliced_Rep2_S63	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_DMSO_Spliced_Rep3_S67	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_DMSO_Spliced_Rep3_S67	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_DMSO_Total_Rep2_S55	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_DMSO_Total_Rep2_S55	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_DMSO_Total_Rep3_S59	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_DMSO_Total_Rep3_S59	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_DMSO_Unspliced_Rep2_S71	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_DMSO_Unspliced_Rep2_S71	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_DMSO_Unspliced_Rep3_S75	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_DMSO_Unspliced_Rep3_S75	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_Protac_Spliced_Rep2_S65	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_Protac_Spliced_Rep2_S65	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_Protac_Spliced_Rep3_S69	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_Protac_Spliced_Rep3_S69	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_Protac_Total_Rep2_S57	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_Protac_Total_Rep2_S57	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_Protac_Total_Rep3_S61	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_Protac_Total_Rep3_S61	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_Protac_Unspliced_Rep2_S73	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_Protac_Unspliced_Rep2_S73	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_1_1_Protac_Unspliced_Rep3_S77	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_1_1_Protac_Unspliced_Rep3_S77	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_DMSO_Spliced_Rep2_S64	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_DMSO_Spliced_Rep2_S64	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_DMSO_Spliced_Rep3_S68	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_DMSO_Spliced_Rep3_S68	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_DMSO_Total_Rep2_S56	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_DMSO_Total_Rep2_S56	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_DMSO_Total_Rep3_S60	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_DMSO_Total_Rep3_S60	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_DMSO_Unspliced_Rep2_S72	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_DMSO_Unspliced_Rep2_S72	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_DMSO_Unspliced_Rep3_S76	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_DMSO_Unspliced_Rep3_S76	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_Protac_Spliced_Rep2_S66	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_Protac_Spliced_Rep2_S66	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_Protac_Spliced_Rep3_S70	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_Protac_Spliced_Rep3_S70	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_Protac_Total_Rep2_S58	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_Protac_Total_Rep2_S58	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_Protac_Total_Rep3_S62	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_Protac_Total_Rep3_S62	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_Protac_Unspliced_Rep2_S74	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_Protac_Unspliced_Rep2_S74	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_B3_9_2_1_Protac_Unspliced_Rep3_S78	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_B3_9_2_1_Protac_Unspliced_Rep3_S78	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_DMSO_Spliced_Rep2_S9	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_DMSO_Spliced_Rep2_S9	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_DMSO_Spliced_Rep3_S13	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_DMSO_Spliced_Rep3_S13	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_DMSO_Total_Rep2_S1	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_DMSO_Total_Rep2_S1	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_DMSO_Total_Rep3_S5	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_DMSO_Total_Rep3_S5	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_DMSO_Unspliced_Rep2_S17	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_DMSO_Unspliced_Rep2_S17	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_DMSO_Unspliced_Rep3_S21	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_DMSO_Unspliced_Rep3_S21	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_Protac_Spliced_Rep2_S11	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_Protac_Spliced_Rep2_S11	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_Protac_Spliced_Rep3_S15	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_Protac_Spliced_Rep3_S15	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_Protac_Total_Rep2_S3	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_Protac_Total_Rep2_S3	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_Protac_Total_Rep3_S7	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_Protac_Total_Rep3_S7	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_Protac_Unspliced_Rep2_S19	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_Protac_Unspliced_Rep2_S19	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_1_1_Protac_Unspliced_Rep3_S23	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_1_1_Protac_Unspliced_Rep3_S23	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_DMSO_Spliced_Rep2_S10	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_DMSO_Spliced_Rep2_S10	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_DMSO_Spliced_Rep3_S14	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_DMSO_Spliced_Rep3_S14	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_DMSO_Total_Rep2_S2	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_DMSO_Total_Rep2_S2	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_DMSO_Total_Rep3_S6	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_DMSO_Total_Rep3_S6	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_DMSO_Unspliced_Rep2_S18	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_DMSO_Unspliced_Rep2_S18	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_DMSO_Unspliced_Rep3_S22	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_DMSO_Unspliced_Rep3_S22	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_Protac_Spliced_Rep2_S12	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_Protac_Spliced_Rep2_S12	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_Protac_Spliced_Rep3_S16	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_Protac_Spliced_Rep3_S16	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_Protac_Total_Rep2_S4	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_Protac_Total_Rep2_S4	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_Protac_Total_Rep3_S8	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_Protac_Total_Rep3_S8	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_Protac_Unspliced_Rep2_S20	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_Protac_Unspliced_Rep2_S20	_R1_001.fastq.gz	_R2_001.fastq.gz
+SON_TRIP_E1_2_1_Protac_Unspliced_Rep3_S24	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run3/SON_TRIP_E1_2_1_Protac_Unspliced_Rep3_S24	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_A1_1_DMSO_S25	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_A1_1_DMSO_S25	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_A1_1_Protac_S31	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_A1_1_Protac_S31	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_A1_2_DMSO_S26	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_A1_2_DMSO_S26	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_A1_2_Protac_S32	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_A1_2_Protac_S32	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_B3_9_1_DMSO_S29	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_B3_9_1_DMSO_S29	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_B3_9_1_Protac_S35	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_B3_9_1_Protac_S35	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_B3_9_2_DMSO_S30	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_B3_9_2_DMSO_S30	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_B3_9_2_Protac_S36	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_B3_9_2_Protac_S36	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_E1_1_DMSO_S27	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_E1_1_DMSO_S27	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_E1_1_Protac_S33	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_E1_1_Protac_S33	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_E1_2_DMSO_S28	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_E1_2_DMSO_S28	_R1_001.fastq.gz	_R2_001.fastq.gz
+Spliced_SON_E1_2_Protac_S34	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Spliced_SON_E1_2_Protac_S34	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_A1_1_DMSO_S13	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_A1_1_DMSO_S13	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_A1_1_Protac_S19	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_A1_1_Protac_S19	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_A1_2_DMSO_S14	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_A1_2_DMSO_S14	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_A1_2_Protac_S20	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_A1_2_Protac_S20	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_B3_9_1_DMSO_S17	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_B3_9_1_DMSO_S17	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_B3_9_1_Protac_S23	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_B3_9_1_Protac_S23	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_B3_9_2_DMSO_S18	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_B3_9_2_DMSO_S18	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_B3_9_2_Protac_S24	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_B3_9_2_Protac_S24	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_E1_1_DMSO_S15	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_E1_1_DMSO_S15	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_E1_1_Protac_S21	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_E1_1_Protac_S21	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_E1_2_DMSO_S16	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_E1_2_DMSO_S16	_R1_001.fastq.gz	_R2_001.fastq.gz
+Total_SON_E1_2_Protac_S22	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Total_SON_E1_2_Protac_S22	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_A1_1_DMSO_S37	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_A1_1_DMSO_S37	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_A1_1_Protac_S43	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_A1_1_Protac_S43	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_A1_2_DMSO_S38	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_A1_2_DMSO_S38	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_A1_2_Protac_S44	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_A1_2_Protac_S44	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_B3_9_1_DMSO_S41	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_B3_9_1_DMSO_S41	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_B3_9_1_Protac_S47	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_B3_9_1_Protac_S47	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_B3_9_2_DMSO_S42	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_B3_9_2_DMSO_S42	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_B3_9_2_Protac_S48	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_B3_9_2_Protac_S48	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_E1_1_DMSO_S39	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_E1_1_DMSO_S39	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_E1_1_Protac_S45	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_E1_1_Protac_S45	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_E1_2_DMSO_S40	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_E1_2_DMSO_S40	_R1_001.fastq.gz	_R2_001.fastq.gz
+Unspliced_SON_E1_2_Protac_S46	/home/projects/ulitsky/igoru/data/human/TRIP/LP_run2/Unspliced_SON_E1_2_Protac_S46	_R1_001.fastq.gz	_R2_001.fastq.gz
+
+### COMBOS
+# mapName<TAB>normSample<TAB>expSample<TAB>effLength<TAB>reverseComplement
+SON_A1	Norm_SON_A1_1_S53	Spliced_SON_A1_1_DMSO_S25	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	Spliced_SON_A1_1_Protac_S31	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	Spliced_SON_A1_2_DMSO_S26	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	Spliced_SON_A1_2_Protac_S32	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	Spliced_SON_B3_9_1_DMSO_S29	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	Spliced_SON_B3_9_1_Protac_S35	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	Spliced_SON_B3_9_2_DMSO_S30	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	Spliced_SON_B3_9_2_Protac_S36	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	Spliced_SON_E1_1_DMSO_S27	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	Spliced_SON_E1_1_Protac_S33	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	Spliced_SON_E1_2_DMSO_S28	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	Spliced_SON_E1_2_Protac_S34	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	Total_SON_A1_1_DMSO_S13	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	Total_SON_A1_1_Protac_S19	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	Total_SON_A1_2_DMSO_S14	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	Total_SON_A1_2_Protac_S20	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	Total_SON_B3_9_1_DMSO_S17	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	Total_SON_B3_9_1_Protac_S23	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	Total_SON_B3_9_2_DMSO_S18	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	Total_SON_B3_9_2_Protac_S24	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	Total_SON_E1_1_DMSO_S15	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	Total_SON_E1_1_Protac_S21	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	Total_SON_E1_2_DMSO_S16	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	Total_SON_E1_2_Protac_S22	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	Unspliced_SON_A1_1_DMSO_S37	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	Unspliced_SON_A1_1_Protac_S43	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	Unspliced_SON_A1_2_DMSO_S38	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	Unspliced_SON_A1_2_Protac_S44	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	Unspliced_SON_B3_9_1_DMSO_S41	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	Unspliced_SON_B3_9_1_Protac_S47	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	Unspliced_SON_B3_9_2_DMSO_S42	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	Unspliced_SON_B3_9_2_Protac_S48	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	Unspliced_SON_E1_1_DMSO_S39	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	Unspliced_SON_E1_1_Protac_S45	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	Unspliced_SON_E1_2_DMSO_S40	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	Unspliced_SON_E1_2_Protac_S46	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_DMSO_Spliced_Rep2_S24	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_DMSO_Spliced_Rep3_S28	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_DMSO_Total_Rep2_S16	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_DMSO_Total_Rep3_S20	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_DMSO_Unspliced_Rep2_S32	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_DMSO_Unspliced_Rep3_S36	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_Protac_Spliced_Rep2_S26	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_Protac_Spliced_Rep3_S30	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_Protac_Total_Rep2_S18	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_Protac_Total_Rep3_S22	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_Protac_Unspliced_Rep2_S34	18	FALSE
+SON_A1	Norm_SON_A1_1_S53	SON_TRIP_A1_1_1_Protac_Unspliced_Rep3_S38	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_DMSO_Spliced_Rep2_S25	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_DMSO_Spliced_Rep3_S29	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_DMSO_Total_Rep2_S17	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_DMSO_Total_Rep3_S21	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_DMSO_Unspliced_Rep2_S33	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_DMSO_Unspliced_Rep3_S37	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_Protac_Spliced_Rep2_S27	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_Protac_Spliced_Rep3_S31	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_Protac_Total_Rep2_S19	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_Protac_Total_Rep3_S23	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_Protac_Unspliced_Rep2_S35	18	FALSE
+SON_A1	Norm_SON_A1_2_S54	SON_TRIP_A1_2_1_Protac_Unspliced_Rep3_S39	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_DMSO_Spliced_Rep2_S63	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_DMSO_Spliced_Rep3_S67	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_DMSO_Total_Rep2_S55	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_DMSO_Total_Rep3_S59	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_DMSO_Unspliced_Rep2_S71	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_DMSO_Unspliced_Rep3_S75	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_Protac_Spliced_Rep2_S65	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_Protac_Spliced_Rep3_S69	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_Protac_Total_Rep2_S57	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_Protac_Total_Rep3_S61	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_Protac_Unspliced_Rep2_S73	18	FALSE
+SON_B3_9	Norm_SON_B3_9_1_S57	SON_TRIP_B3_9_1_1_Protac_Unspliced_Rep3_S77	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_DMSO_Spliced_Rep2_S64	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_DMSO_Spliced_Rep3_S68	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_DMSO_Total_Rep2_S56	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_DMSO_Total_Rep3_S60	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_DMSO_Unspliced_Rep2_S72	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_DMSO_Unspliced_Rep3_S76	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_Protac_Spliced_Rep2_S66	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_Protac_Spliced_Rep3_S70	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_Protac_Total_Rep2_S58	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_Protac_Total_Rep3_S62	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_Protac_Unspliced_Rep2_S74	18	FALSE
+SON_B3_9	Norm_SON_B3_9_2_S58	SON_TRIP_B3_9_2_1_Protac_Unspliced_Rep3_S78	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_DMSO_Spliced_Rep2_S9	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_DMSO_Spliced_Rep3_S13	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_DMSO_Total_Rep2_S1	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_DMSO_Total_Rep3_S5	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_DMSO_Unspliced_Rep2_S17	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_DMSO_Unspliced_Rep3_S21	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_Protac_Spliced_Rep2_S11	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_Protac_Spliced_Rep3_S15	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_Protac_Total_Rep2_S3	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_Protac_Total_Rep3_S7	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_Protac_Unspliced_Rep2_S19	18	FALSE
+SON_E1	Norm_SON_E1_1_S55	SON_TRIP_E1_1_1_Protac_Unspliced_Rep3_S23	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_DMSO_Spliced_Rep2_S10	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_DMSO_Spliced_Rep3_S14	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_DMSO_Total_Rep2_S2	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_DMSO_Total_Rep3_S6	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_DMSO_Unspliced_Rep2_S18	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_DMSO_Unspliced_Rep3_S22	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_Protac_Spliced_Rep2_S12	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_Protac_Spliced_Rep3_S16	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_Protac_Total_Rep2_S4	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_Protac_Total_Rep3_S8	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_Protac_Unspliced_Rep2_S20	18	FALSE
+SON_E1	Norm_SON_E1_2_S56	SON_TRIP_E1_2_1_Protac_Unspliced_Rep3_S24	18	FALSE
+
+### SPLICED_UNSPLICED
+# outName<TAB>splicedExpName<TAB>unsplicedExpName<TAB>totalExpName -- stage 14 input,
+# derived verbatim from the real SON_combined/spliced_unspliced.txt. All names already
+# resolve to real ### FASTQ_SAMPLES rows above.
+A1_1_DMSO	Spliced_SON_A1_1_DMSO_S25	Unspliced_SON_A1_1_DMSO_S37	Total_SON_A1_1_DMSO_S13
+A1_1_Protac	Spliced_SON_A1_1_Protac_S31	Unspliced_SON_A1_1_Protac_S43	Total_SON_A1_1_Protac_S19
+A1_2_DMSO	Spliced_SON_A1_2_DMSO_S26	Unspliced_SON_A1_2_DMSO_S38	Total_SON_A1_2_DMSO_S14
+A1_2_Protac	Spliced_SON_A1_2_Protac_S32	Unspliced_SON_A1_2_Protac_S44	Total_SON_A1_2_Protac_S20
+B3_9_1_DMSO	Spliced_SON_B3_9_1_DMSO_S29	Unspliced_SON_B3_9_1_DMSO_S41	Total_SON_B3_9_1_DMSO_S17
+B3_9_1_Protac	Spliced_SON_B3_9_1_Protac_S35	Unspliced_SON_B3_9_1_Protac_S47	Total_SON_B3_9_1_Protac_S23
+B3_9_2_DMSO	Spliced_SON_B3_9_2_DMSO_S30	Unspliced_SON_B3_9_2_DMSO_S42	Total_SON_B3_9_2_DMSO_S18
+B3_9_2_Protac	Spliced_SON_B3_9_2_Protac_S36	Unspliced_SON_B3_9_2_Protac_S48	Total_SON_B3_9_2_Protac_S24
+E1_1_DMSO	Spliced_SON_E1_1_DMSO_S27	Unspliced_SON_E1_1_DMSO_S39	Total_SON_E1_1_DMSO_S15
+E1_1_Protac	Spliced_SON_E1_1_Protac_S33	Unspliced_SON_E1_1_Protac_S45	Total_SON_E1_1_Protac_S21
+E1_2_DMSO	Spliced_SON_E1_2_DMSO_S28	Unspliced_SON_E1_2_DMSO_S40	Total_SON_E1_2_DMSO_S16
+E1_2_Protac	Spliced_SON_E1_2_Protac_S34	Unspliced_SON_E1_2_Protac_S46	Total_SON_E1_2_Protac_S22
+A1_1_DMSO_rep2	SON_TRIP_A1_1_1_DMSO_Spliced_Rep2_S24	SON_TRIP_A1_1_1_DMSO_Unspliced_Rep2_S32	SON_TRIP_A1_1_1_DMSO_Total_Rep2_S16
+A1_1_DMSO_rep3	SON_TRIP_A1_1_1_DMSO_Spliced_Rep3_S28	SON_TRIP_A1_1_1_DMSO_Unspliced_Rep3_S36	SON_TRIP_A1_1_1_DMSO_Total_Rep3_S20
+A1_1_Protac_rep2	SON_TRIP_A1_1_1_Protac_Spliced_Rep2_S26	SON_TRIP_A1_1_1_Protac_Unspliced_Rep2_S34	SON_TRIP_A1_1_1_Protac_Total_Rep2_S18
+A1_1_Protac_rep3	SON_TRIP_A1_1_1_Protac_Spliced_Rep3_S30	SON_TRIP_A1_1_1_Protac_Unspliced_Rep3_S38	SON_TRIP_A1_1_1_Protac_Total_Rep3_S22
+A1_2_DMSO_rep2	SON_TRIP_A1_2_1_DMSO_Spliced_Rep2_S25	SON_TRIP_A1_2_1_DMSO_Unspliced_Rep2_S33	SON_TRIP_A1_2_1_DMSO_Total_Rep2_S17
+A1_2_DMSO_rep3	SON_TRIP_A1_2_1_DMSO_Spliced_Rep3_S29	SON_TRIP_A1_2_1_DMSO_Unspliced_Rep3_S37	SON_TRIP_A1_2_1_DMSO_Total_Rep3_S21
+A1_2_Protac_rep2	SON_TRIP_A1_2_1_Protac_Spliced_Rep2_S27	SON_TRIP_A1_2_1_Protac_Unspliced_Rep2_S35	SON_TRIP_A1_2_1_Protac_Total_Rep2_S19
+A1_2_Protac_rep3	SON_TRIP_A1_2_1_Protac_Spliced_Rep3_S31	SON_TRIP_A1_2_1_Protac_Unspliced_Rep3_S39	SON_TRIP_A1_2_1_Protac_Total_Rep3_S23
+B3_9_1_DMSO_rep2	SON_TRIP_B3_9_1_1_DMSO_Spliced_Rep2_S63	SON_TRIP_B3_9_1_1_DMSO_Unspliced_Rep2_S71	SON_TRIP_B3_9_1_1_DMSO_Total_Rep2_S55
+B3_9_1_DMSO_rep3	SON_TRIP_B3_9_1_1_DMSO_Spliced_Rep3_S67	SON_TRIP_B3_9_1_1_DMSO_Unspliced_Rep3_S75	SON_TRIP_B3_9_1_1_DMSO_Total_Rep3_S59
+B3_9_1_Protac_rep2	SON_TRIP_B3_9_1_1_Protac_Spliced_Rep2_S65	SON_TRIP_B3_9_1_1_Protac_Unspliced_Rep2_S73	SON_TRIP_B3_9_1_1_Protac_Total_Rep2_S57
+B3_9_1_Protac_rep3	SON_TRIP_B3_9_1_1_Protac_Spliced_Rep3_S69	SON_TRIP_B3_9_1_1_Protac_Unspliced_Rep3_S77	SON_TRIP_B3_9_1_1_Protac_Total_Rep3_S61
+B3_9_2_DMSO_rep2	SON_TRIP_B3_9_2_1_DMSO_Spliced_Rep2_S64	SON_TRIP_B3_9_2_1_DMSO_Unspliced_Rep2_S72	SON_TRIP_B3_9_2_1_DMSO_Total_Rep2_S56
+B3_9_2_DMSO_rep3	SON_TRIP_B3_9_2_1_DMSO_Spliced_Rep3_S68	SON_TRIP_B3_9_2_1_DMSO_Unspliced_Rep3_S76	SON_TRIP_B3_9_2_1_DMSO_Total_Rep3_S60
+B3_9_2_Protac_rep2	SON_TRIP_B3_9_2_1_Protac_Spliced_Rep2_S66	SON_TRIP_B3_9_2_1_Protac_Unspliced_Rep2_S74	SON_TRIP_B3_9_2_1_Protac_Total_Rep2_S58
+B3_9_2_Protac_rep3	SON_TRIP_B3_9_2_1_Protac_Spliced_Rep3_S70	SON_TRIP_B3_9_2_1_Protac_Unspliced_Rep3_S78	SON_TRIP_B3_9_2_1_Protac_Total_Rep3_S62
+E1_1_DMSO_rep2	SON_TRIP_E1_1_1_DMSO_Spliced_Rep2_S9	SON_TRIP_E1_1_1_DMSO_Unspliced_Rep2_S17	SON_TRIP_E1_1_1_DMSO_Total_Rep2_S1
+E1_1_DMSO_rep3	SON_TRIP_E1_1_1_DMSO_Spliced_Rep3_S13	SON_TRIP_E1_1_1_DMSO_Unspliced_Rep3_S21	SON_TRIP_E1_1_1_DMSO_Total_Rep3_S5
+E1_1_Protac_rep2	SON_TRIP_E1_1_1_Protac_Spliced_Rep2_S11	SON_TRIP_E1_1_1_Protac_Unspliced_Rep2_S19	SON_TRIP_E1_1_1_Protac_Total_Rep2_S3
+E1_1_Protac_rep3	SON_TRIP_E1_1_1_Protac_Spliced_Rep3_S15	SON_TRIP_E1_1_1_Protac_Unspliced_Rep3_S23	SON_TRIP_E1_1_1_Protac_Total_Rep3_S7
+E1_2_DMSO_rep2	SON_TRIP_E1_2_1_DMSO_Spliced_Rep2_S10	SON_TRIP_E1_2_1_DMSO_Unspliced_Rep2_S18	SON_TRIP_E1_2_1_DMSO_Total_Rep2_S2
+E1_2_DMSO_rep3	SON_TRIP_E1_2_1_DMSO_Spliced_Rep3_S14	SON_TRIP_E1_2_1_DMSO_Unspliced_Rep3_S22	SON_TRIP_E1_2_1_DMSO_Total_Rep3_S6
+E1_2_Protac_rep2	SON_TRIP_E1_2_1_Protac_Spliced_Rep2_S12	SON_TRIP_E1_2_1_Protac_Unspliced_Rep2_S20	SON_TRIP_E1_2_1_Protac_Total_Rep2_S4
+E1_2_Protac_rep3	SON_TRIP_E1_2_1_Protac_Spliced_Rep3_S16	SON_TRIP_E1_2_1_Protac_Unspliced_Rep3_S24	SON_TRIP_E1_2_1_Protac_Total_Rep3_S8
