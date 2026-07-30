@@ -12,7 +12,13 @@ if (length(myArgs)>0)
 {
   path = myArgs[1]
   nameMap = myArgs[2]
-  barcodeLen = as.integer(myArgs[3])
+  # myArgs[3] is optional (barcodeLen keeps its default of 18 above when omitted) -- indexing
+  # a shorter myArgs vector out of bounds returns NA rather than erroring, and as.integer(NA)
+  # is silently NA, not 18. That NA then propagates through nchar(barcodes)==barcodeLen
+  # below as an all-NA comparison, which silently empties out every position's barcode list
+  # with no error at all (confirmed in the sibling get_genuine_barcodes_IntronTRIP.R script:
+  # running with only path+nameMap produced a "successful" run with fully empty output).
+  if (length(myArgs)>=3) barcodeLen = as.integer(myArgs[3])
 }
 print(path)
 print(nameMap)
