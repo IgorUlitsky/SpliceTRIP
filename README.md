@@ -20,6 +20,131 @@ raw fastq (R1/R2)
  -> [07] normalizeTRIP (+ optional 1-nt mismatch tolerance) -> <expName>.combined_counts.txt  ★
 ```
 
+Background: a TRIP experiment transfects a pool of plasmids, each carrying a random ~18-nt
+barcode next to a piggyBac reporter, so barcodes land at essentially random genomic
+positions (`Map` libraries). The reporter's activity at each position is then read out by
+sequencing the barcode alone from RNA or normalized DNA (`Norm`/`Exp` libraries). Stages
+01-06 are all about pinning down, per barcode, *where* it landed and *whether that call can
+be trusted*; stage 07 is where a `Norm`/`Exp` pair actually gets turned into a per-position
+expression value.
+
+### [01] cutadapt — `scripts/01_run_cutadapt.sh {map|count} <name>`
+
+Extracts the UMI + 18-nt barcode from R1's header into the read name (via cutadapt's
+`--rename`) and trims the read-through/adapter sequence, so every later stage works off a
+clean, position-tagged FASTQ instead of raw sequence.
+
+- **`map` mode** (Map libraries — DNA, paired-end, R2 is genomic): two cutadapt passes.
+  Pass 1 finds the R1 primer + 18 N's (barcode) + junction sequence with `--cut 4` first
+  (strips the 4-nt UMI) and anchors R2 to the ITR primer that ends in the piggyBac `TTAA`
+  duplication signature. Pass 2 trims any read-through into the construct from both mates.
+  Output: `01_cutadapt/<name>.R{1,2}.fastq.gz` (R1 header carries `umi=`/`barcode=`) plus
+  `<name>.barcodes.txt.gz` (read_name, UMI, barcode — one exactly-18-nt barcode per read).
+- **`count` mode** (Norm/Exp libraries — barcode readout only, R2 unused downstream): a
+  single **anchored** (`-g "^..."`) cutadapt pass, then an awk one-liner tallies
+  `barcode -> read_count` straight from the renamed FASTQ header, sorted by count
+  descending. Output: `01_cutadapt/<name>.R{1,2}.fastq.gz` and `<name>.counts.txt.gz`.
+  See `docs/count_exp_reference.md` for the real per-sample job scripts this mode is a
+  parameterised template of, and why the primer match is anchored.
+
+### [02] bowtie2 mapping — `scripts/02_run_bowtie2.sh <name>` (Map-mode only)
+
+Aligns both mates end-to-end to hg38 (`bowtie2 -X 2000`), then keeps only read 2 (flag
+`0x80`) — R1 is the constant reporter sequence whose barcode was already captured in stage
+01, R2 is the genomic DNA flanking the integration site. Converts R2's alignments to one
+BED12 line each. Output: `<name>.bam` (both mates, sorted+indexed), `<name>.second.bam`
+(R2 only), `02_mapping/<name>.second_read.bed.gz` (what stage 03 reads). This script is a
+reconstruction — no per-sample script for this step survives in the run directories, so the
+alignment was historically run ad hoc; treat the bowtie2 flags as authoritative, the
+packaging as new.
+
+### [03] analyzeTRIPMapping — `scripts/03_analyzeTRIPMapping.R <path> <path_to_mapping> <name>`
+
+The core per-read-to-per-position collapse. Joins stage 01's barcode table to stage 02's
+alignment BED by read name, drops alignments outside a sane length range (20-300 bp) and
+any landing in the globin locus (a common plasmid-integration artefact region on chr11),
+then groups reads by genomic position + strand and asks, per position: which barcode(s)
+were actually seen there, and in what proportion? A position can have several barcode
+"clusters" if some are just sequencing/PCR noise around the dominant one — the position is
+kept only if noise doesn't swamp the signal (`screenFunc`: drop positions where too many
+distinct barcodes each carry ≥1% of the max count). Two outputs, row-aligned to each other:
+`<name>.barcodes_poses.txt` (position + strand + length + `barcode:count,...` list +
+aggregate counts) and `<name>.barcodes.bed` (same positions in BED6 for genome browsers).
+
+Minus-strand position uses the `Start = V3-1` convention (BED end is exclusive/half-open,
+so the true last-aligned base is `V3-1`, not `V3`) — this is a deliberate, empirically
+verified fix over the original `trip-pipeline` behaviour; see "Resolved discrepancies"
+below.
+
+### [04] filterMappings (+ optional TTAA filter) — `scripts/04_filterMappings_TTAA.R <path> <name> [ttaaFilter <ttaa_bed>]`
+
+Resolves multiple nearby integration calls that are really the same physical integration
+site read slightly differently. Per chromosome, positions are visited in order of
+decreasing read support (`MaxCount`/`TopBarcode`, computed here from stage 03's barcode
+list); a position is dropped as redundant if a stronger position is within 10 bp, has
+≥4x its read count, and its dominant barcode is within edit distance 3 (a near-duplicate,
+not a coincidence). Survivors are written out with the two new columns appended:
+`<name>.filtered_barcodes_poses.txt` (12 columns — the alignment-`Length` column from
+stage 03 plus `MaxCount`/`TopBarcode`) and `<name>.filtered_barcodes.bed`.
+
+Optional **TTAA filter** (piggyBac integrates exclusively at `TTAA` sites, so a position
+that isn't adjacent to a real genomic `TTAA` is very likely a mapping artefact): pass
+`ttaaFilter <ttaa_bed_path>` (a 6-col BED like `hg38_ttaa.bed`) as extra args to require
+each surviving position to sit exactly at a known TTAA (strand-aware offset: `+` strand
+checks `V2-4`, `-` strand checks `V2+1` given stage 03's `V3-1` convention). Off by
+default; enabled pipeline-wide by setting `TTAA_BED` in `### GLOBAL`.
+
+### [05] filterContaminants — `scripts/05_filterContaminants_uniform.R <path> <fileList> [contFactor]`
+
+Removes index-hopping contamination between mapping libraries that were sequenced
+together. Takes a fileList (`sample_name<TAB>group`, one row per Map-mode sample) and, per
+`(Chr, Pos, Barcode)` key, compares each sample's read count against the *maximum* count
+seen for that same key in any *other* group on the same list. A key survives if its own
+count is within `contFactor` (default 30, i.e. ≥1/30th) of that cross-group max, or if the
+key was never observed outside its own group at all (kept, since there's nothing to compare
+against). In the unified pipeline, `run_pipeline.sh` builds one fileList per
+`contamination_batch` value (see "Production configs" below) rather than one global list,
+since contamination can only happen between samples multiplexed on the same physical
+sequencing run. Output: `<name>.retained_barcodes_counts.txt` and
+`<name>.retained_barcodes.bed` (the two are filtered independently, since a bed row's `V4`
+field can pack several barcode variants at one position — see the script's own comments for
+a real row-misalignment bug this fixes over the simpler upstream version).
+
+### [06] get_genuine_barcodes — `scripts/06_get_genuine_barcodes.R <path> <mapName>.txt <barcodeLen>`
+
+Combines every replicate Map-mode sample belonging to one construct (the `### MAPS` list,
+e.g. `5ss_Map_rep1`+`5ss_Map_rep2` -> mapName `5ss`) into one genuine-barcode map for that
+construct. Reads each sample's `.retained_barcodes.bed`, re-aggregates by `(Chr, Start,
+End, Strand)` across ALL of them, and within each position collapses near-duplicate
+barcodes (edit distance ≤2) into their dominant variant, summing counts. A barcode/position
+pair is "genuine" if that barcode maps to exactly one position across the whole construct
+(`retained_barcodes_genuine.bed`); barcodes seen at more than one position are split off
+separately (`retained_barcodes_multimappers.bed`) rather than being silently kept or
+dropped. `_forUCSC` variants are the same tables with scores capped at 1000 for genome
+browser display. This is what stage 07 reads as its map of barcode -> genomic position.
+
+### [07] normalizeTRIP (+ optional 1-nt mismatch tolerance) — `scripts/07_normalizeTRIP_MM.R <path> <path_norm> <mapName>.txt <normSample> <expSample> <effLength> <reverseComplement> [oneMismatch]`
+
+The actual expression readout, run once per `### COMBOS` row. Loads the construct's genuine
+barcode map (stage 06), the Norm library's barcode counts (stage 01 `count` mode, floored
+at `minNormReads = 2`), and the Exp library's barcode counts, all truncated/aggregated to
+the first `effLength` bases (some readouts use a shorter effective barcode than the full 18
+nt). Keeps only barcodes that (a) map to exactly one genomic position and (b) are present
+in both Norm and Exp, then writes one row per barcode: raw `norm`/`exp` counts plus the
+mapped `Chr`/`Pos`/`Strand`. `reverseComplement` (`TRUE`/`FALSE`, per-combo in the config)
+handles Exp libraries sequenced from the opposite strand of the barcode (e.g. some RNA
+readouts). Output: `<expName>.combined_counts.txt` ★ (the pipeline's end product — per-
+barcode norm/exp counts + position, ready for a `exp.norm = log2((1+exp)/(1+norm))`-style
+downstream analysis) and `<expName>.bed`.
+
+Optional **1-nt mismatch tolerance** (`oneMismatch` as the 8th arg, or a `yes` in the
+config's `### COMBOS` 6th column): before intersecting with the genuine map, Norm/Exp
+barcodes that are exactly one substitution away from a single genuine barcode (and not
+ambiguous between two) are "snapped" onto it and their counts summed in — rescues reads
+with a single sequencing error that would otherwise be silently dropped for not matching
+any genuine barcode exactly. Off by default; exact-match behaviour is unchanged when the
+flag is omitted.
+
 ## Running
 
 ```bash
