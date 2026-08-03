@@ -177,11 +177,14 @@ pieDF$end = cumsum(pieDF$fraction) * 2 * pi
 pieDF$start = c(0, head(pieDF$end, -1))
 pieDF$mid = (pieDF$start + pieDF$end) / 2
 r = 1
-# Anchor point for each label/leader-line sits well outside the pie's own edge (1.5x its
-# radius, not just barely past it) so ggrepel's repelling has room to keep every label
-# genuinely outside the circle rather than nudged only just clear of its neighbors.
-pieDF$labelX = r * 1.5 * sin(pieDF$mid)
-pieDF$labelY = r * 1.5 * cos(pieDF$mid)
+# ggrepel draws each leader line from the exact (x,y) data point to the label, so the
+# anchor has to sit ON the pie's own edge (r itself) for the line to actually touch the
+# pie -- an anchor placed further out (as a previous version of this script did, at 1.5x
+# r) leaves a floating gap between the pie and where the line starts. Labels are instead
+# pushed outward via repulsion strength (force/force_pull/box.padding below), not by
+# moving the anchor.
+pieDF$labelX = r * sin(pieDF$mid)
+pieDF$labelY = r * cos(pieDF$mid)
 
 p = ggplot(pieDF) +
   geom_arc_bar(aes(x0 = 0, y0 = 0, r0 = 0, r = r, start = start, end = end, fill = category),
@@ -190,7 +193,8 @@ p = ggplot(pieDF) +
                     size = 3, lineheight = 0.9, fontface = "bold",
                     segment.color = "grey40", min.segment.length = 0,
                     label.size = NA, fill = scales::alpha("white", 0.85),
-                    box.padding = 0.4) +
+                    box.padding = 0.6, point.padding = 0.3,
+                    force = 4, force_pull = 0.2) +
   scale_fill_manual(values = catColors, breaks = catLevels, guide = "none") +
   coord_fixed(clip = "off") +
   expand_limits(x = c(-2.4, 2.4), y = c(-2.4, 2.4)) +
