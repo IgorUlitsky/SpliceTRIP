@@ -46,6 +46,12 @@ maneBED = read.table(maneBedPath,sep="\t",header=F)
 maneBED$Length = maneBED$V3-maneBED$V2
 maneBED$ExonicLength = sapply(strsplit(as.character(maneBED$V11),","),function(x){sum(as.numeric(x))})
 intronBED = read.table(maneIntronsBedPath,sep="\t",header=F)
+# This reference file's V2 (start) is 1-based-inclusive while V3 (end) is standard
+# 0-based-exclusive (a mix-up baked into the file itself, confirmed by re-deriving intron
+# boundaries directly from maneBED's own BED12 exon block structure: V2 here is exactly 1
+# more than the true 0-based start for every intron checked, V3 always matches exactly).
+# Correct it here so it's consistent with every other bed file this script uses.
+intronBED$V2 = intronBED$V2 - 1L
 intronBED$Length = intronBED$V3-intronBED$V2
 gencodeBED = read.table(gencodeNoncodingBedPath,sep="\t",header=F)
 gencodeBED$Length = gencodeBED$V3-gencodeBED$V2
