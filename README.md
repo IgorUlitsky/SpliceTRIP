@@ -495,7 +495,7 @@ integrations on the same chromosome; how many MANE transcripts and how many GENC
 have ≥1 integration (out of the total that exist); and a mutually-exclusive breakdown of
 where integrations land — MANE intron > MANE exon > GENCODE exon (non-MANE) > GENCODE
 intron (non-MANE) > antisense to a MANE transcript > other/intergenic, in that priority
-order — rendered as a labelled pie chart (`<xxx>.integration_categories_pie.pdf`, every
+order — rendered as a labelled pie chart (`plots/<xxx>.integration_categories_pie.pdf`, every
 slice labelled with its category/%/n directly via `ggrepel`, no separate legend). MANE
 intron/exon calls reuse stage 10's own `MANE_intron`/`MANE_exonic` columns; GENCODE
 exon/intron calls are computed fresh via a sense-strand interval join against the full

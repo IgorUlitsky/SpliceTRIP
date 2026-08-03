@@ -204,6 +204,7 @@ p = ggplot(pieDF) +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"),
         plot.subtitle = element_text(hjust = 0.5, color = "#52514e"))
 
-pieFile = paste0(xxx, ".integration_categories_pie.pdf")
+dir.create("plots", showWarnings = FALSE)
+pieFile = paste0("plots/", xxx, ".integration_categories_pie.pdf")
 ggsave(pieFile, p, width = 7, height = 5.5)
 cat("\nPie chart saved to", pieFile, "\n")
