@@ -2,13 +2,16 @@
 # =============================================================================
 # TRIP unified pipeline — orchestrator
 # =============================================================================
-# Reads a config text file (see config/example_config.txt) and runs stages 01-18
+# Reads a config text file (see config/example_config.txt) and runs stages 01-10/14/17/18
 # (cutadapt -> bowtie2 -> analyzeTRIPMapping -> filterMappings[+TTAA] ->
 # filterContaminants -> get_genuine_barcodes -> normalizeTRIP[+oneMismatch] ->
 # combineSplicedUnsplicedPairs[if configured] -> make_tracks -> gc_content ->
-# table_annotation -> comparePairwiseSharedPositions -> annotateTRIP_positions ->
-# annotateTRIPGeneBodies -> gc_content_report -> compareReplicatesAndMultiIntegrations ->
-# meta_bigwig_overlap[if configured] -> plotMetageneCorrelations[if configured]) in order.
+# table_annotation -> meta_bigwig_overlap[if configured] ->
+# plotMetageneCorrelations[if configured]) in order. comparePairwiseSharedPositions /
+# annotateTRIP_positions / annotateTRIPGeneBodies / gc_content_report /
+# compareReplicatesAndMultiIntegrations are visualization/QC scripts, not pipeline stages --
+# run them by hand against stage 07/10's output (see README's "Visualization scripts"
+# section), not orchestrated here.
 #
 # Usage
 #   bash run_pipeline.sh <config.txt> [target] [threads]
@@ -19,16 +22,14 @@
 #     genuine_barcodes  01-06
 #     combined_counts   01-07 (everything needed for combined_counts.txt) ★ pipeline's main
 #                        deliverable, plus stage 14 if ### SPLICED_UNSPLICED has rows
-#     annotated         01-18 (adds per-construct annotated_tables.txt (+ annotated_table_used.txt,
-#                        the same table restricted to barcodes with >=2 total normalization
-#                        reads across every ### COMBOS normSample for that construct) -- MANE/gencode/
-#                        repeats/ChromHMM/SPIN/GC --, a pairwise shared-position
-#                        comparison across every ### FASTQ_MAPS construct, per-construct
-#                        QC/gene-body positional-correlation/GC-content-vs-expression/
-#                        replicate-agreement reports, and (stages 17-18, only if
-#                        histone_marks.txt/speckle_names.txt are present) a metagene
-#                        histone-mark/speckle-track correlation report; independent of
-#                        stage 07, runs alongside it)
+#     annotated         01-10/14/17/18 (adds per-construct annotated_tables.txt (+
+#                        annotated_table_used.txt, the same table restricted to barcodes
+#                        with >=2 total normalization reads across every ### COMBOS
+#                        normSample for that construct) -- MANE/gencode/repeats/ChromHMM/
+#                        SPIN/GC --, and (stages 17-18, only if histone_marks.txt/
+#                        speckle_names.txt are present) a metagene histone-mark/
+#                        speckle-track correlation report; independent of stage 07, runs
+#                        alongside it)
 #
 # Every stage writes into the CURRENT directory (matching each stage script's own
 # convention of writing next to its inputs) -- run this from wherever you want the
@@ -412,87 +413,25 @@ waitForJobs
 echo
 
 # =============================================================================
-# Stage 11: comparePairwiseSharedPositions -- every pair of ### FASTQ_MAPS mapNames (not
-# every ### COMBOS row), so this needs its own name-list and its own <mapName><TAB>
-# <expName> exp-list, built from ### COMBOS' mapName+expSample columns (1st+3rd). Real
-# production expListFiles are often hand-curated and NOT 1:1 with ### COMBOS (e.g. a
-# separate splicing-ratio pipeline's outputs pooled in) -- see examples/exp_lists/ for
-# real ones to use instead of this auto-generated one, by passing your own expListFile as
-# a 3rd arg to this script directly rather than going through run_pipeline.sh.
+# comparePairwiseSharedPositions / annotateTRIP_positions / annotateTRIPGeneBodies /
+# gc_content_report / compareReplicatesAndMultiIntegrations (formerly stages 11-13/15-16)
+# are visualization/QC scripts, not pipeline stages -- run them by hand against stage
+# 07/10's output (see README's "Visualization scripts" section), same as
+# plotSplicingEfficiencies_uniform.R and computeIntegrationStats.R. Not orchestrated here.
 # =============================================================================
-echo "=== Stage 11: comparePairwiseSharedPositions ==="
-mkdir -p "$WORK/plots"
-EXPLIST="$WORK/.pipeline_exp_list.txt"
-awk -F'\t' '{print $1"\t"$3}' "$PARSED/COMBOS.tsv" > "$EXPLIST"
-ALLMAPNAMES=$(echo "$MAPNAMES" | paste -sd,)
-submitOrRun "stage11_pairwise.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/11_comparePairwiseSharedPositions_uniform.R" "$WORK/" "$ALLMAPNAMES" \
-  "$(basename "$EXPLIST")" "plots/pairwise_shared_positions.pdf"
-waitForJobs
-echo
-
-# =============================================================================
-# Stages 12-13: per-construct QC (annotateTRIP_positions) and gene-body positional
-# correlations (annotateTRIPGeneBodies) -- one run PER ### FASTQ_MAPS mapName, unlike
-# stage 11's whole-list call. Each needs a single-column namesExp_file (one <expName>
-# per line, no mapName prefix -- different from stage 11's expListFile), built here from
-# ### COMBOS' rows for that one mapName (3rd column, expSample).
-# =============================================================================
-echo "=== Stage 12: annotateTRIP_positions (per-construct QC, one job per construct) ==="
-while read -r mapName; do
-  [ -z "$mapName" ] && continue
-  NAMESEXP="$WORK/.pipeline_namesExp.${mapName}.txt"
-  awk -F'\t' -v m="$mapName" '$1==m{print $3}' "$PARSED/COMBOS.tsv" > "$NAMESEXP"
-  echo "-- $mapName ($(wc -l < "$NAMESEXP") expression sample(s)) --"
-  submitOrRun "stage12_${mapName}.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/12_annotateTRIP_positions_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
-    "$(basename "$NAMESEXP")" "plots/annotateTRIP_positions_${mapName}.pdf"
-done <<< "$MAPNAMES"
-waitForJobs
-echo
-
-echo "=== Stage 13: annotateTRIPGeneBodies (per-construct positional correlations, one job per construct) ==="
-while read -r mapName; do
-  [ -z "$mapName" ] && continue
-  NAMESEXP="$WORK/.pipeline_namesExp.${mapName}.txt"
-  echo "-- $mapName ($(wc -l < "$NAMESEXP") expression sample(s)) --"
-  submitOrRun "stage13_${mapName}.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/13_annotateTRIPGeneBodies_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
-    "$(basename "$NAMESEXP")" "plots/annotateTRIPGeneBodies_${mapName}.pdf" "$SPECKLE_DIR"
-done <<< "$MAPNAMES"
-waitForJobs
-echo
-
-echo "=== Stage 15: gc_content_report (per-construct GC-content vs expression, one job per construct) ==="
-while read -r mapName; do
-  [ -z "$mapName" ] && continue
-  NAMESEXP="$WORK/.pipeline_namesExp.${mapName}.txt"
-  echo "-- $mapName ($(wc -l < "$NAMESEXP") expression sample(s)) --"
-  submitOrRun "stage15_${mapName}.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/15_gc_content_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
-    "$(basename "$NAMESEXP")" "plots/gc_content_report_${mapName}.pdf"
-done <<< "$MAPNAMES"
-waitForJobs
-echo
-
-# =============================================================================
-# Stage 16: compareReplicatesAndMultiIntegrations -- whole-list call like stage 11 (reuses
-# its auto-generated $EXPLIST, same <mapName><TAB><expName> format), not per-construct like
-# stages 12/13/15. Real production expListFiles for this stage are also often hand-curated
-# (e.g. only a "Total" readout per rep, not every ### COMBOS expName) -- see
-# examples/exp_lists/ for a real one, by passing your own expListFile as the 3rd arg to
-# this script directly rather than going through run_pipeline.sh.
-# =============================================================================
-echo "=== Stage 16: compareReplicatesAndMultiIntegrations (per-construct replicate/multi-integration QC) ==="
-submitOrRun "stage16_replicates.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/16_compareReplicatesAndMultiIntegrations_uniform.R" "$WORK/" "$ALLMAPNAMES" \
-  "$(basename "$EXPLIST")" "plots/replicates_integrations.pdf"
-waitForJobs
-echo
 
 # =============================================================================
 # Stages 17-18: metagene bigWig overlap (histone marks + speckle/TSA-seq tracks) and its
 # correlation-vs-expression report. Optional: skipped entirely if histone_marks.txt and
 # speckle_names.txt (real, curated per-dataset files -- see e.g.
 # single_combined/histone_marks.txt -- not generated by this pipeline) aren't both present
-# in the working directory. Reuses $EXPLIST from stage 11/16 -- stage 18's expFile is the
-# identical mapType<TAB>exp format.
+# in the working directory. Builds its own <mapName><TAB><expName> $EXPLIST from ### COMBOS'
+# mapName+expSample columns (1st+3rd) -- stage 18's expFile is that same mapType<TAB>exp
+# format.
 # =============================================================================
+EXPLIST="$WORK/.pipeline_exp_list.txt"
+awk -F'\t' '{print $1"\t"$3}' "$PARSED/COMBOS.tsv" > "$EXPLIST"
+ALLMAPNAMES=$(echo "$MAPNAMES" | paste -sd,)
 if [ -f "$WORK/histone_marks.txt" ] && [ -f "$WORK/speckle_names.txt" ]; then
   MAPTYPES="$WORK/.pipeline_map_types.txt"
   printf '%s\n' "$MAPNAMES" > "$MAPTYPES"
@@ -513,4 +452,4 @@ else
   echo
 fi
 
-echo "=== done: <mapName>.txt.annotated_tables.txt and .annotated_table_used.txt written for each construct; pairwise_shared_positions.pdf, annotateTRIP_positions_<mapName>.pdf, annotateTRIPGeneBodies_<mapName>.pdf, gc_content_report_<mapName>.pdf, replicates_integrations.pdf, and (if histone_marks.txt/speckle_names.txt present) metagene_correlations.{meta_corrs,summary_meta_corrs}.pdf written ==="
+echo "=== done: <mapName>.txt.annotated_tables.txt and .annotated_table_used.txt written for each construct, and (if histone_marks.txt/speckle_names.txt present) metagene_correlations.{meta_corrs,summary_meta_corrs}.pdf written ==="

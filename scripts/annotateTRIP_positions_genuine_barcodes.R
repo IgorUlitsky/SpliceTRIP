@@ -1,18 +1,24 @@
 # =============================================================================
-# Stage 12 — per-construct QC report: barcode overlap, ChromHMM/SPIN vs expression
+# annotateTRIP_positions — per-construct QC report: barcode overlap, ChromHMM/SPIN vs
+# expression
 # =============================================================================
+# Visualization/QC script, not a numbered pipeline stage -- run by hand against stage
+# 07/10's output whenever you want this report, same convention as
+# plotSplicingEfficiencies_uniform.R and computeIntegrationStats.R.
+#
 # Usage
-#   Rscript 12_annotateTRIP_positions_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf>
+#   Rscript annotateTRIP_positions_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf>
 #
 # Inputs   <mapName>.txt.annotated_tables.txt   (stage 10)
 #          <expName>.combined_counts.txt        (stage 07, or any pipeline producing the
 #                                                same columns -- e.g. a splicing-ratio
 #                                                exp.log10, auto-detected and preserved;
 #                                                see examples/exp_lists/ for real ones)
-#   namesExp_file: one <expName> per line (NOT the <mapName><TAB><expName> pairs stage 11
-#                  uses -- e.g. examples/exp_lists/single_combined.exp_list.txt's 2nd
-#                  column, filtered to one construct). run_pipeline.sh's "annotated"
-#                  target builds this per construct from ### COMBOS automatically.
+#   namesExp_file: one <expName> per line (NOT the <mapName><TAB><expName> pairs
+#                  comparePairwiseSharedPositions_uniform.R uses -- e.g.
+#                  examples/exp_lists/single_combined.exp_list.txt's 2nd column, filtered
+#                  to one construct). Build this per construct from ### COMBOS' expSample
+#                  column yourself, or reuse a hand-curated one.
 #
 # Outputs  <outFile.pdf>                 barcode-overlap heatmap + per-library QC pages
 #          <outFile.pdf>.summary.pdf     cross-library ChromHMM/SPIN summary heatmaps

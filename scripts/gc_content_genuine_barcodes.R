@@ -1,22 +1,29 @@
 # =============================================================================
-# Stage 15 — per-construct GC-content vs expression report
+# gc_content_genuine_barcodes — per-construct GC-content vs expression report
 # =============================================================================
+# Visualization/QC script, not a numbered pipeline stage -- run by hand against stage
+# 07/10's output whenever you want this report, same convention as
+# plotSplicingEfficiencies_uniform.R and computeIntegrationStats.R.
+#
 # Usage
-#   Rscript 15_gc_content_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf>
+#   Rscript gc_content_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf>
 #
 # Inputs   <mapName>.txt.annotated_tables.txt   (stage 10)
 #          <expName>.combined_counts.txt        (stage 07, or any pipeline producing the
 #                                                same columns -- e.g. a splicing-ratio
 #                                                exp.log10, auto-detected and preserved;
 #                                                see examples/exp_lists/ for real ones)
-#   namesExp_file: one <expName> per line, same format as stages 12/13's.
+#   namesExp_file: one <expName> per line, same format as annotateTRIP_positions_genuine_
+#                  barcodes.R/annotateTRIPGeneBodies_genuine_barcodes.R's.
 #
 # Outputs  <outFile.pdf>   per-library: GC% density histogram, expression-vs-GC% scatter
 #                          (colored by Low/Average/High GC category), and expression-by-
 #                          GC-category boxplot (pairwise t-tests between the 3 categories)
 #
 # Run once PER construct (loop over every distinct ### FASTQ_MAPS mapName), same as
-# stages 12/13 -- unlike stage 11 which takes the whole construct list in one call.
+# annotateTRIP_positions_genuine_barcodes.R/annotateTRIPGeneBodies_genuine_barcodes.R --
+# unlike comparePairwiseSharedPositions_uniform.R, which takes the whole construct list in
+# one call.
 #
 # This is a verbatim port of igoru's `gc_content_genuine_barcodes.R`
 # (/home/projects/ulitsky/lidiag/R/scripts/decent_scripts/), aside from an added doc
@@ -25,8 +32,10 @@
 # differently-scaled exp.log10 that *.spliced_unspliced.combined_counts.txt files already
 # carry (a [0,1]-bounded splicing ratio) -- confirmed run in production against exactly
 # such files (real gc_content_IntronTRIP_spliced_unspliced.pdf output on disk). Same fix
-# already applied to stages 07/10/12/13's equivalent merges. No hardcoded external paths
-# to extract -- like stages 11-13, it only reads other pipeline stages' own output.
+# already applied to stage 07/10's and annotateTRIP_positions_genuine_barcodes.R's/
+# annotateTRIPGeneBodies_genuine_barcodes.R's equivalent merges. No hardcoded external
+# paths to extract -- like those two scripts, it only reads other pipeline stages' own
+# output.
 # =============================================================================
 library(ggplot2)
 library(ggpubr)

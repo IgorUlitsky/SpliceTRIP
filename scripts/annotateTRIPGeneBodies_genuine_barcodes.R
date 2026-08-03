@@ -1,16 +1,21 @@
 # =============================================================================
-# Stage 13 — per-construct gene-body positional analysis (GC/speckle-distance/host-
-# expression/TSS-TES-intron-distance correlations, density-terrain scatters)
+# annotateTRIPGeneBodies — per-construct gene-body positional analysis (GC/speckle-
+# distance/host-expression/TSS-TES-intron-distance correlations, density-terrain scatters)
 # =============================================================================
+# Visualization/QC script, not a numbered pipeline stage -- run by hand against stage
+# 07/10's output whenever you want this report, same convention as
+# plotSplicingEfficiencies_uniform.R and computeIntegrationStats.R.
+#
 # Usage
-#   Rscript 13_annotateTRIPGeneBodies_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf> [speckleDir]
+#   Rscript annotateTRIPGeneBodies_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf> [speckleDir]
 #
 # Inputs   <mapName>.txt.annotated_tables.txt   (stage 10)
 #          <expName>.combined_counts.txt        (stage 07, or any pipeline producing the
 #                                                same columns -- e.g. a splicing-ratio
 #                                                exp.log10, auto-detected and preserved;
 #                                                see examples/exp_lists/ for real ones)
-#   namesExp_file: one <expName> per line, same format/derivation as stage 12's.
+#   namesExp_file: one <expName> per line, same format/derivation as
+#                  annotateTRIP_positions_genuine_barcodes.R's.
 #
 # Outputs  <outFile.pdf>                per-library correlation scatters (heatscatter +
 #                                        ggplot density-terrain) against GC content,
@@ -23,7 +28,8 @@
 #                                        rho/n/p values behind every correlation above
 #
 # Run once PER construct (loop over every distinct ### FASTQ_MAPS mapName), same as
-# stage 12 -- unlike stage 11 which takes the whole construct list in one call.
+# annotateTRIP_positions_genuine_barcodes.R -- unlike comparePairwiseSharedPositions_uniform.R,
+# which takes the whole construct list in one call.
 #
 # This is igoru's `annotateTRIPGeneBodies_genuine_barcodes.R` verbatim, aside from an
 # added doc header and its one hardcoded external path (the MANE-to-speckle-distance

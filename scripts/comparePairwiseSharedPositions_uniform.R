@@ -1,10 +1,15 @@
 # =============================================================================
-# Stage 11 — pairwise shared-position comparison across mapping libraries
+# comparePairwiseSharedPositions — pairwise shared-position comparison across mapping
+# libraries
 # =============================================================================
-# Usage
-#   Rscript 11_comparePairwiseSharedPositions_uniform.R <path> <mapName1,mapName2,...> <expListFile> <outFile.pdf> [titleExtra]
+# Visualization/QC script, not a numbered pipeline stage -- run by hand against stage
+# 07/10's output whenever you want this report, same convention as
+# plotSplicingEfficiencies_uniform.R and computeIntegrationStats.R.
 #
-# Inputs   <mapName>.txt.annotated_tables.txt   (stage 10)
+# Usage
+#   Rscript comparePairwiseSharedPositions_uniform.R <path> <mapName1,mapName2,...> <expListFile> <outFile.pdf> [titleExtra]
+#
+# Inputs   <mapName>.txt.annotated_table_used.txt   (stage 10, normalization-filtered)
 #          <expName>.combined_counts.txt        (stage 07, OR any other pipeline that
 #                                                produces the same columns -- e.g. a
 #                                                splicing-ratio exp.log10 instead of the
@@ -14,8 +19,8 @@
 #                                                unspliced-style expListFile examples)
 #   expListFile: <mapName><TAB><expName>, one row per (construct, expression library) pair
 #                to pool into that construct's per-position average -- see
-#                examples/exp_lists/ for real ones, or auto-generate from ### COMBOS
-#                (run_pipeline.sh's "annotated" target does this automatically).
+#                examples/exp_lists/ for real ones, or build one yourself from ### COMBOS'
+#                mapName+expSample columns.
 #
 # Outputs  <outFile.pdf>                                    4 ComplexHeatmaps (see below)
 #          <outFile.pdf>.shared_positions.<mapA>_vs_<mapB>.txt   per unordered construct
@@ -69,7 +74,7 @@ posDataByMap = list()
 for (mapName in mapNames)
 {
   print(mapName)
-  annotTab=read.table(paste0(path,mapName,".txt.annotated_tables.txt"),sep="\t",comment="")
+  annotTab=read.table(paste0(path,mapName,".txt.annotated_table_used.txt"),sep="\t",comment="")
   allMerged = annotTab
   expNames = expList[expList$V1==mapName,"V2"]
   for (nameExp in expNames)

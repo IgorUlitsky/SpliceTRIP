@@ -1,17 +1,22 @@
 # =============================================================================
-# Stage 16 — compareReplicatesAndMultiIntegrations
+# compareReplicatesAndMultiIntegrations
 # =============================================================================
+# Visualization/QC script, not a numbered pipeline stage -- run by hand against stage
+# 07/10's output whenever you want this report, same convention as
+# plotSplicingEfficiencies_uniform.R and computeIntegrationStats.R.
+#
 # Verbatim port of igoru's ~/R/trip/compareReplicatesAndMultiIntegrations_uniform.R, no
 # logic changes. QC report per construct: how much do independent barcodes landing in the
 # same gene / same intron / same exact position agree with each other, compared to random
 # pairs? (expression distance boxplots with Wilcoxon comparisons), how many barcodes share
 # a gene/intron/position (histograms), and which libraries express which barcodes (UpSet
 # plot). Same reads-annotated_tables.txt-plus-combined_counts.txt-per-expName merge pattern
-# as stage 11/12/13, but the actual comparisons (gene/intron/position multi-integration
-# agreement) are unique to this stage.
+# as comparePairwiseSharedPositions_uniform.R/annotateTRIP_positions_genuine_barcodes.R/
+# annotateTRIPGeneBodies_genuine_barcodes.R, but the actual comparisons (gene/intron/
+# position multi-integration agreement) are unique to this script.
 #
 # Usage
-#   Rscript 16_compareReplicatesAndMultiIntegrations_uniform.R <path> <mapName1,mapName2,...> <expListFile> <outFile.pdf> [titleExtra]
+#   Rscript compareReplicatesAndMultiIntegrations_uniform.R <path> <mapName1,mapName2,...> <expListFile> <outFile.pdf> [titleExtra]
 #
 # Real example (as actually run for IntronTRIP_combined):
 #   bsub -R rusage[mem=30000] Rscript ~/R/trip/compareReplicatesAndMultiIntegrations_uniform.R \
@@ -19,11 +24,11 @@
 #     plots/replicates_integrations_IntronTRIP_expression.pdf
 #
 # expListFile: mapName<TAB>expName, one row per (construct, expression-readout) pair to
-# include -- like stage 11, real production expListFiles are often hand-curated and NOT 1:1
-# with ### COMBOS (e.g. only the "Total" readout per rep, as in the real
-# expression.exp_list.txt this stage was designed around). See examples/exp_lists/ for real
-# ones; pass your own expListFile as the 3rd arg to run this directly rather than through
-# run_pipeline.sh if you need something ### COMBOS can't auto-generate.
+# include -- like comparePairwiseSharedPositions_uniform.R, real production expListFiles are
+# often hand-curated and NOT 1:1 with ### COMBOS (e.g. only the "Total" readout per rep, as
+# in the real expression.exp_list.txt this script was designed around). See
+# examples/exp_lists/ for real ones, or build one yourself from ### COMBOS' mapName+expSample
+# columns.
 #
 # Inputs (per mapName)   <mapName>.txt.annotated_tables.txt              (stage 10)
 # Inputs (per expName)   <expName>.combined_counts.txt                   (stage 07)
