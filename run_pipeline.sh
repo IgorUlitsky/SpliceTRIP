@@ -19,7 +19,9 @@
 #     genuine_barcodes  01-06
 #     combined_counts   01-07 (everything needed for combined_counts.txt) ★ pipeline's main
 #                        deliverable, plus stage 14 if ### SPLICED_UNSPLICED has rows
-#     annotated         01-18 (adds per-construct annotated_tables.txt -- MANE/gencode/
+#     annotated         01-18 (adds per-construct annotated_tables.txt (+ annotated_table_used.txt,
+#                        the same table restricted to barcodes with >=2 total normalization
+#                        reads across every ### COMBOS normSample for that construct) -- MANE/gencode/
 #                        repeats/ChromHMM/SPIN/GC --, a pairwise shared-position
 #                        comparison across every ### FASTQ_MAPS construct, per-construct
 #                        QC/gene-body positional-correlation/GC-content-vs-expression/
@@ -134,13 +136,33 @@ export BARCODE_LEN
 USE_LSF=${USE_LSF:-1}
 declare -a JOBIDS=()
 
-# submitOrRun <logfile> <mem_mb> <n_cores> <command...>
+# Each bsub job gets a fresh, non-interactive shell that does NOT inherit whatever lmod
+# modules happen to be loaded in the shell that launched this script, so every command
+# below loads what it needs explicitly (module names below match what's actually available
+# via `module avail` on this cluster; bump these if the cluster's module set changes).
+CUTADAPT_MOD="cutadapt/4.2-GCCcore-11.3.0"
+BOWTIE2_MOD="Bowtie2/2.5.1-GCC-12.3.0"
+R_MOD="R-bundle-Bioconductor/3.19-foss-2023b-R-4.4.1"
+BEDTOOLS_MOD="BEDTools/2.31.1-GCC-13.3.0"
+KENTUTILS_MOD="kentUtils/v377"
+
+# submitOrRun <logfile> <mem_mb> <n_cores> <modules|-> <command...>
+# <modules> is a space-separated list of lmod module names to load before running <command>
+# (pass "-" for none). Applied in both the bsub and local-eval branches so USE_LSF=0 behaves
+# the same way (harmless if the module is already loaded interactively).
 submitOrRun() {
-  local logfile=$1 mem=$2 ncores=$3
-  shift 3
+  local logfile=$1 mem=$2 ncores=$3 modules=$4
+  shift 4
+  local preamble=""
+  if [ "$modules" != "-" ] && [ -n "$modules" ]; then
+    preamble="source /etc/profile.d/lmod.sh; module load $modules; "
+  fi
   if [ "$USE_LSF" = "1" ]; then
     local out jobid
-    out=$(bsub -R "rusage[mem=${mem}]" -n "$ncores" -o "$logfile" "$@" 2>&1)
+    # Compiled-binary modules (bedtools/bowtie2/cutadapt/kentUtils) live under an
+    # AMD-specific easybuild tree and aren't visible on non-AMD_EPYC hosts, so every job is
+    # pinned to that host class -- cheap and correct even for the pure-R stages.
+    out=$(bsub -R "select[type==X86_64 && model==AMD_EPYC] rusage[mem=${mem}]" -n "$ncores" -o "$logfile" "${preamble}$*" 2>&1)
     jobid=$(echo "$out" | grep -oE '<[0-9]+>' | head -1 | tr -d '<>')
     if [ -z "$jobid" ]; then
       echo "ERROR: bsub submission failed:" >&2
@@ -149,7 +171,7 @@ submitOrRun() {
     fi
     JOBIDS+=("$jobid")
   else
-    eval "$@" > "$logfile" 2>&1
+    eval "${preamble}$*" > "$logfile" 2>&1
   fi
 }
 
@@ -201,7 +223,7 @@ while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
   echo "-- $name (mode=map) --"
   stageFastq "$name" "$pathPrefix" "$r1suf" "$r2suf"
-  submitOrRun "${name}_01_cutadapt.log" 8000 "$THREADS" bash "$SCRIPTS/01_run_cutadapt.sh" map "$name" "$THREADS"
+  submitOrRun "${name}_01_cutadapt.log" 8000 "$THREADS" "$CUTADAPT_MOD" bash "$SCRIPTS/01_run_cutadapt.sh" map "$name" "$THREADS"
 done < "$PARSED/FASTQ_MAPS.tsv"
 
 for section in FASTQ_NORM FASTQ_SAMPLES; do
@@ -218,7 +240,7 @@ for section in FASTQ_NORM FASTQ_SAMPLES; do
     # row). awk's field splitting doesn't have this collapsing behavior.
     r1Adapter=$(awk -F'\t' -v n="$name" '$1==n{print $5}' "$PARSED/$section.tsv")
     r2Adapter=$(awk -F'\t' -v n="$name" '$1==n{print $6}' "$PARSED/$section.tsv")
-    submitOrRun "${name}_01_cutadapt.log" 8000 "$THREADS" \
+    submitOrRun "${name}_01_cutadapt.log" 8000 "$THREADS" "$CUTADAPT_MOD" \
       env R1_ADAPTER="$r1Adapter" R2_ADAPTER="$r2Adapter" bash "$SCRIPTS/01_run_cutadapt.sh" count "$name" "$THREADS"
   done < "$PARSED/$section.tsv"
 done
@@ -231,7 +253,7 @@ echo "=== Stage 02: bowtie2 (### FASTQ_MAPS samples only, one job per sample) ==
 while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
   echo "-- $name --"
-  submitOrRun "${name}_02_bowtie2.log" 16000 "$THREADS" bash "$SCRIPTS/02_run_bowtie2.sh" "$name" "$THREADS" "$BOWTIE2_INDEX"
+  submitOrRun "${name}_02_bowtie2.log" 16000 "$THREADS" "$BOWTIE2_MOD" bash "$SCRIPTS/02_run_bowtie2.sh" "$name" "$THREADS" "$BOWTIE2_INDEX"
 done < "$PARSED/FASTQ_MAPS.tsv"
 waitForJobs
 echo
@@ -245,7 +267,7 @@ echo "=== Stage 03: analyzeTRIPMapping (one job per sample) ==="
 while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
   echo "-- $name --"
-  submitOrRun "${name}_03_analyzeTRIPMapping.log" 8000 1 \
+  submitOrRun "${name}_03_analyzeTRIPMapping.log" 8000 1 "$R_MOD" \
     Rscript "$SCRIPTS/03_analyzeTRIPMapping.R" "$WORK/" "$WORK/02_mapping/" "$name" "$BARCODE_LEN"
 done < "$PARSED/FASTQ_MAPS.tsv"
 waitForJobs
@@ -256,10 +278,10 @@ while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
   echo "-- $name --"
   if [ -n "$TTAA_BED" ]; then
-    submitOrRun "${name}_04_filterMappings.log" 4000 1 \
+    submitOrRun "${name}_04_filterMappings.log" 4000 1 "$R_MOD" \
       Rscript "$SCRIPTS/04_filterMappings_TTAA.R" "$WORK/" "$name" ttaaFilter "$TTAA_BED"
   else
-    submitOrRun "${name}_04_filterMappings.log" 4000 1 \
+    submitOrRun "${name}_04_filterMappings.log" 4000 1 "$R_MOD" \
       Rscript "$SCRIPTS/04_filterMappings_TTAA.R" "$WORK/" "$name"
   fi
 done < "$PARSED/FASTQ_MAPS.tsv"
@@ -286,7 +308,7 @@ else
     FILELIST="$WORK/.pipeline_fileList.${batch}.txt"
     awk -F'\t' -v b="$batch" '($6==""?"default":$6)==b {print $1"\t"$5}' "$PARSED/FASTQ_MAPS.tsv" > "$FILELIST"
     echo "-- batch: $batch ($(wc -l < "$FILELIST") sample(s)) --"
-    submitOrRun "stage05_${batch}.log" 8000 1 \
+    submitOrRun "stage05_${batch}.log" 8000 1 "$R_MOD" \
       Rscript "$SCRIPTS/05_filterContaminants_uniform.R" "$WORK/" "$(basename "$FILELIST")" "$CONT_FACTOR"
   done <<< "$BATCHES"
 fi
@@ -304,7 +326,7 @@ while read -r mapName; do
   manifest="$WORK/${mapName}.txt"
   awk -F'\t' -v m="$mapName" '$5==m{print $1".retained_barcodes.bed"}' "$PARSED/FASTQ_MAPS.tsv" > "$manifest"
   echo "-- $mapName ($(wc -l < "$manifest") sample(s)) --"
-  submitOrRun "stage06_${mapName}.log" 8000 1 \
+  submitOrRun "stage06_${mapName}.log" 8000 1 "$R_MOD" \
     Rscript "$SCRIPTS/06_get_genuine_barcodes.R" "$WORK/" "$(basename "$manifest")" "$BARCODE_LEN" "$DPNII_BED"
 done <<< "$MAPNAMES"
 waitForJobs
@@ -323,7 +345,7 @@ while IFS=$'\t' read -r mapName normSample expSample effLength revComp oneMismat
   echo "-- map=$mapName norm=$normSample exp=$expSample --"
   args=("$WORK/" "$WORK/" "${mapName}.txt" "$normSample" "$expSample" "$effLength" "$revComp")
   if [ "${oneMismatch:-}" = "yes" ]; then args+=("oneMismatch"); fi
-  submitOrRun "stage07_${expSample}.log" 8000 1 Rscript "$SCRIPTS/07_normalizeTRIP_MM.R" "${args[@]}"
+  submitOrRun "stage07_${expSample}.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/07_normalizeTRIP_MM.R" "${args[@]}"
 done < "$PARSED/COMBOS.tsv"
 waitForJobs
 
@@ -367,7 +389,7 @@ echo
 # itself restructured to take a single construct name to parallelize further. Still routed
 # through submitOrRun so it runs as one LSF job rather than blocking on the login node.
 echo "=== Stage 08: make_tracks (MANE/gencode/repeats intersects) ==="
-submitOrRun "stage08_make_tracks.log" 4000 1 bash "$SCRIPTS/08_make_tracks_genuine_barcodes.sh" "$(basename "$NAMELIST")" \
+submitOrRun "stage08_make_tracks.log" 4000 1 "$BEDTOOLS_MOD" bash "$SCRIPTS/08_make_tracks_genuine_barcodes.sh" "$(basename "$NAMELIST")" \
   "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$REPEATS_BED"
 waitForJobs
 echo
@@ -376,14 +398,16 @@ echo "=== Stage 09: gc_content (one job per construct) ==="
 while read -r mapName; do
   [ -z "$mapName" ] && continue
   echo "-- $mapName --"
-  submitOrRun "stage09_${mapName}.log" 4000 1 bash "$SCRIPTS/09_gc_content_single_genuine_barcodes.sh" "${mapName}.txt" "$CHROM_SIZES" "$GENOME_FASTA"
+  submitOrRun "stage09_${mapName}.log" 4000 1 "$BEDTOOLS_MOD" bash "$SCRIPTS/09_gc_content_single_genuine_barcodes.sh" "${mapName}.txt" "$CHROM_SIZES" "$GENOME_FASTA"
 done <<< "$MAPNAMES"
 waitForJobs
 echo
 
-echo "=== Stage 10: table_annotation (annotated_tables.txt) ==="
-submitOrRun "stage10_table_annotation.log" 16000 1 Rscript "$SCRIPTS/10_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
-  "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$TRANS2GENE" "$MANE_EXPRESSION" "$CHROMHMM_BED" "$SPIN_BED"
+echo "=== Stage 10: table_annotation (annotated_tables.txt + annotated_table_used.txt) ==="
+NORMMANIFEST="$WORK/.pipeline_norm_manifest.txt"
+awk -F'\t' '{print $1"\t"$2}' "$PARSED/COMBOS.tsv" > "$NORMMANIFEST"
+submitOrRun "stage10_table_annotation.log" 16000 1 "$R_MOD" Rscript "$SCRIPTS/10_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
+  "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$TRANS2GENE" "$MANE_EXPRESSION" "$CHROMHMM_BED" "$SPIN_BED" "$(basename "$NORMMANIFEST")"
 waitForJobs
 echo
 
@@ -401,7 +425,7 @@ mkdir -p "$WORK/plots"
 EXPLIST="$WORK/.pipeline_exp_list.txt"
 awk -F'\t' '{print $1"\t"$3}' "$PARSED/COMBOS.tsv" > "$EXPLIST"
 ALLMAPNAMES=$(echo "$MAPNAMES" | paste -sd,)
-submitOrRun "stage11_pairwise.log" 8000 1 Rscript "$SCRIPTS/11_comparePairwiseSharedPositions_uniform.R" "$WORK/" "$ALLMAPNAMES" \
+submitOrRun "stage11_pairwise.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/11_comparePairwiseSharedPositions_uniform.R" "$WORK/" "$ALLMAPNAMES" \
   "$(basename "$EXPLIST")" "plots/pairwise_shared_positions.pdf"
 waitForJobs
 echo
@@ -419,7 +443,7 @@ while read -r mapName; do
   NAMESEXP="$WORK/.pipeline_namesExp.${mapName}.txt"
   awk -F'\t' -v m="$mapName" '$1==m{print $3}' "$PARSED/COMBOS.tsv" > "$NAMESEXP"
   echo "-- $mapName ($(wc -l < "$NAMESEXP") expression sample(s)) --"
-  submitOrRun "stage12_${mapName}.log" 8000 1 Rscript "$SCRIPTS/12_annotateTRIP_positions_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
+  submitOrRun "stage12_${mapName}.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/12_annotateTRIP_positions_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
     "$(basename "$NAMESEXP")" "plots/annotateTRIP_positions_${mapName}.pdf"
 done <<< "$MAPNAMES"
 waitForJobs
@@ -430,7 +454,7 @@ while read -r mapName; do
   [ -z "$mapName" ] && continue
   NAMESEXP="$WORK/.pipeline_namesExp.${mapName}.txt"
   echo "-- $mapName ($(wc -l < "$NAMESEXP") expression sample(s)) --"
-  submitOrRun "stage13_${mapName}.log" 8000 1 Rscript "$SCRIPTS/13_annotateTRIPGeneBodies_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
+  submitOrRun "stage13_${mapName}.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/13_annotateTRIPGeneBodies_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
     "$(basename "$NAMESEXP")" "plots/annotateTRIPGeneBodies_${mapName}.pdf" "$SPECKLE_DIR"
 done <<< "$MAPNAMES"
 waitForJobs
@@ -441,7 +465,7 @@ while read -r mapName; do
   [ -z "$mapName" ] && continue
   NAMESEXP="$WORK/.pipeline_namesExp.${mapName}.txt"
   echo "-- $mapName ($(wc -l < "$NAMESEXP") expression sample(s)) --"
-  submitOrRun "stage15_${mapName}.log" 8000 1 Rscript "$SCRIPTS/15_gc_content_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
+  submitOrRun "stage15_${mapName}.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/15_gc_content_genuine_barcodes.R" "$WORK/" "${mapName}.txt" \
     "$(basename "$NAMESEXP")" "plots/gc_content_report_${mapName}.pdf"
 done <<< "$MAPNAMES"
 waitForJobs
@@ -456,7 +480,7 @@ echo
 # this script directly rather than going through run_pipeline.sh.
 # =============================================================================
 echo "=== Stage 16: compareReplicatesAndMultiIntegrations (per-construct replicate/multi-integration QC) ==="
-submitOrRun "stage16_replicates.log" 8000 1 Rscript "$SCRIPTS/16_compareReplicatesAndMultiIntegrations_uniform.R" "$WORK/" "$ALLMAPNAMES" \
+submitOrRun "stage16_replicates.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/16_compareReplicatesAndMultiIntegrations_uniform.R" "$WORK/" "$ALLMAPNAMES" \
   "$(basename "$EXPLIST")" "plots/replicates_integrations.pdf"
 waitForJobs
 echo
@@ -474,13 +498,13 @@ if [ -f "$WORK/histone_marks.txt" ] && [ -f "$WORK/speckle_names.txt" ]; then
   printf '%s\n' "$MAPNAMES" > "$MAPTYPES"
 
   echo "=== Stage 17: meta_bigwig_overlap (bedtools slop + bigWigAverageOverBed) ==="
-  submitOrRun "stage17_meta_bigwig.log" 8000 1 bash "$SCRIPTS/17_meta_bigwig_overlap.sh" "$(basename "$MAPTYPES")" \
+  submitOrRun "stage17_meta_bigwig.log" 8000 1 "$BEDTOOLS_MOD $KENTUTILS_MOD" bash "$SCRIPTS/17_meta_bigwig_overlap.sh" "$(basename "$MAPTYPES")" \
     "$HISTONE_BW_DIR" "$SPECKLE_DIR" "$CHROM_SIZES" "$HG38_TO_HG19_CHAIN"
   waitForJobs
   echo
 
   echo "=== Stage 18: plotMetageneCorrelations ==="
-  submitOrRun "stage18_metagene.log" 8000 1 Rscript "$SCRIPTS/18_plotMetageneCorrelations_uniform.R" "$WORK/" pearson "$ALLMAPNAMES" \
+  submitOrRun "stage18_metagene.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/18_plotMetageneCorrelations_uniform.R" "$WORK/" pearson "$ALLMAPNAMES" \
     "$(basename "$EXPLIST")" metagene_correlations
   waitForJobs
   echo
@@ -489,4 +513,4 @@ else
   echo
 fi
 
-echo "=== done: <mapName>.txt.annotated_tables.txt written for each construct; pairwise_shared_positions.pdf, annotateTRIP_positions_<mapName>.pdf, annotateTRIPGeneBodies_<mapName>.pdf, gc_content_report_<mapName>.pdf, replicates_integrations.pdf, and (if histone_marks.txt/speckle_names.txt present) metagene_correlations.{meta_corrs,summary_meta_corrs}.pdf written ==="
+echo "=== done: <mapName>.txt.annotated_tables.txt and .annotated_table_used.txt written for each construct; pairwise_shared_positions.pdf, annotateTRIP_positions_<mapName>.pdf, annotateTRIPGeneBodies_<mapName>.pdf, gc_content_report_<mapName>.pdf, replicates_integrations.pdf, and (if histone_marks.txt/speckle_names.txt present) metagene_correlations.{meta_corrs,summary_meta_corrs}.pdf written ==="

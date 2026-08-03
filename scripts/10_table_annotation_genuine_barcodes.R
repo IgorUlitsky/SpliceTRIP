@@ -16,6 +16,14 @@ trans2genePath = "/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refse
 maneExpressionPath = "/home/projects/ulitsky/igoru/data/human/ENCODE/K562/K562_1_MANEReadsPerGene.out.tab"
 chromHmmBedPath = "/home/projects/ulitsky/shared/data/human/K562_ChromHMM_Kellis_ENCFF319VXX.bed.gz"
 spinBedPath = "/home/projects/ulitsky/igoru/R/trip/data/K562_SPIN_25kb_hg38.bed"
+# Optional: TSV of mapName<TAB>normSample (one row per distinct ### COMBOS pair; normSample
+# counts live at <path><normSample>.counts.txt.gz, same convention stage 07 reads them
+# with). When given, each construct also gets a ".annotated_table_used.txt" alongside its
+# ".annotated_tables.txt" -- the same table restricted to barcodes with >=2 normalization
+# reads summed across every normSample used for that construct (stage 07's own
+# minNormReads=2 only ever checks a single normSample at a time, not the pooled total across
+# reps/pools). Left blank, this step is skipped entirely.
+normManifestPath = ""
 
 # Arguments from the terminal
 myArgs = commandArgs(trailingOnly = T)
@@ -23,7 +31,7 @@ if (length(myArgs)>0)
 {
   path = myArgs[1]
   namesMaps_file = myArgs[2]
-  # Args 3-9 are all optional (each keeps its default above when omitted) -- same
+  # Args 3-10 are all optional (each keeps its default above when omitted) -- same
   # length-guarded pattern as stage 06's barcodeLen/dpniiBedPath, so a missing trailing
   # arg falls back to the documented default instead of silently becoming NA (as.integer's
   # or as.character's NA on an out-of-bounds myArgs[i] is silent, not an error).
@@ -34,7 +42,10 @@ if (length(myArgs)>0)
   if (length(myArgs)>=7 && nzchar(myArgs[7])) maneExpressionPath = myArgs[7]
   if (length(myArgs)>=8 && nzchar(myArgs[8])) chromHmmBedPath = myArgs[8]
   if (length(myArgs)>=9 && nzchar(myArgs[9])) spinBedPath = myArgs[9]
+  if (length(myArgs)>=10 && nzchar(myArgs[10])) normManifestPath = myArgs[10]
 }
+normManifest = NULL
+if (nzchar(normManifestPath)) normManifest = read.table(normManifestPath, sep = "\t", header = F, col.names = c("mapName","normSample"))
 namesMaps<-read.table(paste0(path, namesMaps_file))$V1
 print(path)
 print(namesMaps)
@@ -209,4 +220,26 @@ for (name in namesMaps)
 
   # Write final table to file
   write.table(AnnotTabs[[name]], paste0(path, name, ".annotated_tables.txt"), quote = F, col.names = T, row.names = T, sep = "\t")
+
+  # annotated_table_used.txt: same table, restricted to barcodes with >=2 normalization
+  # reads summed across every ### COMBOS normSample used for this construct.
+  if (!is.null(normManifest)) {
+    # namesMaps entries carry the ".txt" suffix (stage 06/08's <mapName>.txt convention);
+    # normManifest's mapName column is the bare COMBOS value -- strip it to match.
+    normSamples = unique(normManifest$normSample[normManifest$mapName == sub("\\.txt$", "", name)])
+    totalNormReads = setNames(rep(0L, nrow(AnnotTabs[[name]])), rownames(AnnotTabs[[name]]))
+    for (normSample in normSamples) {
+      normFile = paste0(path, normSample, ".counts.txt.gz")
+      if (!file.exists(normFile)) {
+        warning(paste("normalization counts file not found, skipping:", normFile))
+        next
+      }
+      normTab = read.table(normFile, sep = "\t", row.names = 1)
+      matched = intersect(rownames(normTab), names(totalNormReads))
+      totalNormReads[matched] = totalNormReads[matched] + normTab[matched, "V2"]
+    }
+    usedTab = AnnotTabs[[name]][totalNormReads[rownames(AnnotTabs[[name]])] >= 2, ]
+    print(paste(name, ": ", nrow(usedTab), "/", nrow(AnnotTabs[[name]]), "barcodes with >=2 total normalization reads across", length(normSamples), "normSample(s)"))
+    write.table(usedTab, paste0(path, name, ".annotated_table_used.txt"), quote = F, col.names = T, row.names = T, sep = "\t")
+  }
 }
