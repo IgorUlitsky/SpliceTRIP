@@ -116,8 +116,18 @@ for (name in namesMaps)
   # Calculate distances and relative positions
   AnnotTabs[[name]]$MANElength = maneBED[match(AnnotTabs[[name]]$MANE_all, maneBED$V4), "Length"]
   AnnotTabs[[name]]$MANE_intron_length = intronBED[match(AnnotTabs[[name]]$MANE_intron, intronBED$V4), "Length"]
-  AnnotTabs[[name]]$DistToStart = (AnnotTabs[[name]]$Pos - maneBED[match(AnnotTabs[[name]]$MANE_intronic, maneBED$V4), "V2"])
-  AnnotTabs[[name]]$DistToEnd = (maneBED[match(AnnotTabs[[name]]$MANE_intronic, maneBED$V4), "V3"] - AnnotTabs[[name]]$Pos)
+  # Matched on MANE_all (not MANE_intronic): MANE_intronic is NA'd out for exonic
+  # positions (see above), so matching on it here silently dropped DistToStart/DistToEnd
+  # for any barcode landing in a MANE exon -- MANElength/MANE_all_symbol stayed correct
+  # (they're matched on MANE_all), but the later gencode_noncoding fallback below would
+  # then unconditionally fill the resulting NA from *any* coincidentally-overlapping
+  # gencode feature, attributing that unrelated gene's distances/length under the real
+  # gene's symbol (e.g. AHCTF1 shown with KIF28P's distances). Matching on MANE_all
+  # directly gives every MANE-overlapping position (exonic or intronic) its own gene's
+  # boundaries, so the fallback below now only fires for positions with no MANE overlap
+  # at all.
+  AnnotTabs[[name]]$DistToStart = (AnnotTabs[[name]]$Pos - maneBED[match(AnnotTabs[[name]]$MANE_all, maneBED$V4), "V2"])
+  AnnotTabs[[name]]$DistToEnd = (maneBED[match(AnnotTabs[[name]]$MANE_all, maneBED$V4), "V3"] - AnnotTabs[[name]]$Pos)
   AnnotTabs[[name]]$DistToTSS = ifelse(AnnotTabs[[name]]$Strand == "+", AnnotTabs[[name]]$DistToStart, AnnotTabs[[name]]$DistToEnd)
   AnnotTabs[[name]]$DistToTES = ifelse(AnnotTabs[[name]]$Strand == "-", AnnotTabs[[name]]$DistToStart, AnnotTabs[[name]]$DistToEnd)
   AnnotTabs[[name]]$RelPos = AnnotTabs[[name]]$DistToTSS / AnnotTabs[[name]]$MANElength
