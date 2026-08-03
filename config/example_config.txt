@@ -24,7 +24,7 @@ R2_PRIMER	GTACGTCACAATATGATTATCTTTCTAGGGTTAA
 # 08-10 are only reached with the "annotated" target, so they're safe to leave unset
 # entirely if you only need combined_counts.
 MANE_BED	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genomic.bed
-MANE_INTRONS_BED	/home/projects/ulitsky/lidiag/genomic_data/GCF_000001405.40_GRCh38.p14_MANE_introns_new_format.bed
+MANE_INTRONS_BED	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genomic.introns_new_format.bed
 GENCODE_NONCODING_BED	/home/projects/ulitsky/lidiag/genomic_data/gencode.v46.annotation.noncoding.bed
 REPEATS_BED	/home/projects/ulitsky/lidiag/genomic_data/hg38.repeats.bed
 CHROM_SIZES	/home/projects/ulitsky/shared/ucsctracks/hg38/hg38.chrom.sizes
