@@ -177,8 +177,11 @@ pieDF$end = cumsum(pieDF$fraction) * 2 * pi
 pieDF$start = c(0, head(pieDF$end, -1))
 pieDF$mid = (pieDF$start + pieDF$end) / 2
 r = 1
-pieDF$labelX = r * 1.05 * sin(pieDF$mid)
-pieDF$labelY = r * 1.05 * cos(pieDF$mid)
+# Anchor point for each label/leader-line sits well outside the pie's own edge (1.5x its
+# radius, not just barely past it) so ggrepel's repelling has room to keep every label
+# genuinely outside the circle rather than nudged only just clear of its neighbors.
+pieDF$labelX = r * 1.5 * sin(pieDF$mid)
+pieDF$labelY = r * 1.5 * cos(pieDF$mid)
 
 p = ggplot(pieDF) +
   geom_arc_bar(aes(x0 = 0, y0 = 0, r0 = 0, r = r, start = start, end = end, fill = category),
@@ -186,10 +189,11 @@ p = ggplot(pieDF) +
   geom_label_repel(aes(x = labelX, y = labelY, label = label),
                     size = 3, lineheight = 0.9, fontface = "bold",
                     segment.color = "grey40", min.segment.length = 0,
-                    label.size = NA, fill = scales::alpha("white", 0.85)) +
+                    label.size = NA, fill = scales::alpha("white", 0.85),
+                    box.padding = 0.4) +
   scale_fill_manual(values = catColors, breaks = catLevels, guide = "none") +
   coord_fixed(clip = "off") +
-  expand_limits(x = c(-1.8, 1.8), y = c(-1.8, 1.8)) +
+  expand_limits(x = c(-2.4, 2.4), y = c(-2.4, 2.4)) +
   labs(title = "TRIP integration locations",
        subtitle = paste0(basename(xxx), "  (n = ", format(n, big.mark = ","), ")")) +
   theme_void(base_size = 13) +
