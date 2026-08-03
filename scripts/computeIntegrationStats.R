@@ -149,6 +149,8 @@ for (cat_name in names(tabCounts)) {
 
 ## ---- pie chart of the breakdown ----
 suppressMessages(library(ggplot2))
+suppressMessages(library(ggforce))
+suppressMessages(library(ggrepel))
 
 catLevels = c("MANE intron", "MANE exon", "GENCODE exon (non-MANE)",
               "GENCODE intron (non-MANE)", "Antisense to MANE transcript", "other/intergenic")
@@ -159,23 +161,40 @@ catColors = c("#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300")
 pieDF = data.frame(category = factor(catLevels, levels = catLevels),
                     count = as.numeric(tabCounts[catLevels]))
 pieDF$pct = 100 * pieDF$count / sum(pieDF$count)
-pieDF$label = ifelse(pieDF$pct >= 3, sprintf("%.1f%%", pieDF$pct), "")
+# Every slice gets a label (no size threshold) -- category name, %, and n, in place of a
+# separate legend.
+pieDF$label = sprintf("%s\n%.1f%%  (n=%s)", pieDF$category, pieDF$pct, format(pieDF$count, big.mark = ","))
 
-# geom_text's own position_stack(vjust=0.5) is used for the label y-position (not a
-# hand-computed cumsum) so the label always lands in the same slice geom_col actually draws,
-# regardless of position_stack's internal (reversed) stacking order.
-p = ggplot(pieDF, aes(x = "", y = count, fill = category)) +
-  geom_col(width = 1, color = "#fcfcfb", linewidth = 0.8) +
-  coord_polar(theta = "y", start = 0, direction = 1) +
-  scale_fill_manual(values = catColors, breaks = catLevels, name = "Category") +
-  geom_text(aes(label = label), position = position_stack(vjust = 0.5),
-            color = "white", fontface = "bold", size = 3.8) +
+# Built with ggforce::geom_arc_bar (ordinary Cartesian wedge polygons, angle 0 = 12
+# o'clock, increasing clockwise) rather than coord_polar()+geom_col, so ggrepel's usual
+# Cartesian-space repelling/leader-line logic applies to the labels -- coord_polar's
+# transformed space doesn't work with ggrepel. Every label sits just outside the pie and
+# is nudged apart from its neighbors automatically, which matters most for small
+# neighboring slices (e.g. "MANE exon"/"GENCODE exon (non-MANE)" here) that would
+# otherwise overlap if drawn inside their own sliver.
+pieDF$fraction = pieDF$count / sum(pieDF$count)
+pieDF$end = cumsum(pieDF$fraction) * 2 * pi
+pieDF$start = c(0, head(pieDF$end, -1))
+pieDF$mid = (pieDF$start + pieDF$end) / 2
+r = 1
+pieDF$labelX = r * 1.05 * sin(pieDF$mid)
+pieDF$labelY = r * 1.05 * cos(pieDF$mid)
+
+p = ggplot(pieDF) +
+  geom_arc_bar(aes(x0 = 0, y0 = 0, r0 = 0, r = r, start = start, end = end, fill = category),
+               color = "#fcfcfb", linewidth = 0.8) +
+  geom_label_repel(aes(x = labelX, y = labelY, label = label),
+                    size = 3, lineheight = 0.9, fontface = "bold",
+                    segment.color = "grey40", min.segment.length = 0,
+                    label.size = NA, fill = scales::alpha("white", 0.85)) +
+  scale_fill_manual(values = catColors, breaks = catLevels, guide = "none") +
+  coord_fixed(clip = "off") +
+  expand_limits(x = c(-1.8, 1.8), y = c(-1.8, 1.8)) +
   labs(title = "TRIP integration locations",
        subtitle = paste0(basename(xxx), "  (n = ", format(n, big.mark = ","), ")")) +
   theme_void(base_size = 13) +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-        plot.subtitle = element_text(hjust = 0.5, color = "#52514e"),
-        legend.title = element_text(face = "bold"))
+        plot.subtitle = element_text(hjust = 0.5, color = "#52514e"))
 
 pieFile = paste0(xxx, ".integration_categories_pie.pdf")
 ggsave(pieFile, p, width = 7, height = 5.5)

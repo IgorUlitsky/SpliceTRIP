@@ -495,12 +495,18 @@ integrations on the same chromosome; how many MANE transcripts and how many GENC
 have ≥1 integration (out of the total that exist); and a mutually-exclusive breakdown of
 where integrations land — MANE intron > MANE exon > GENCODE exon (non-MANE) > GENCODE
 intron (non-MANE) > antisense to a MANE transcript > other/intergenic, in that priority
-order — rendered as a labelled pie chart (`<xxx>.integration_categories_pie.pdf`). MANE
+order — rendered as a labelled pie chart (`<xxx>.integration_categories_pie.pdf`, every
+slice labelled with its category/%/n directly via `ggrepel`, no separate legend). MANE
 intron/exon calls reuse stage 10's own `MANE_intron`/`MANE_exonic` columns; GENCODE
 exon/intron calls are computed fresh via a sense-strand interval join against the full
 GENCODE v42 exon/intron annotation (covers every transcript including the MANE-select
 ones, so it's also the single, self-consistent gene set used for the "GENCODE genes hit"
-denominator, rather than mixing MANE's RefSeq IDs with GENCODE's Ensembl IDs).
+denominator, rather than mixing MANE's RefSeq IDs with GENCODE's Ensembl IDs). The pie is
+built with `ggforce::geom_arc_bar` (plain Cartesian wedge polygons) rather than the more
+common `coord_polar()+geom_col`, since `ggrepel`'s repelling/leader-line logic needs
+Cartesian space to work in — this is what keeps small neighboring slices (e.g. "MANE
+exon"/"GENCODE exon (non-MANE)", often just ~1% each) legible instead of overlapping
+inside their own sliver.
 
 Ported from `~/R/trip/computeIntegrationStats.R`, changed to read
 `<xxx>.annotated_table_used.txt` (stage 10's normalization-filtered table — barcodes with
