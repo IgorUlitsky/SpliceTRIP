@@ -29,6 +29,7 @@ expListFile = "exp_list.txt"
 bwName = "ATAC"
 window = 500
 smoothWindow = 10
+minBarcodesToPlot = 20  # panels/expression-bins with fewer barcodes than this are skipped
 
 myArgs = commandArgs(trailingOnly = TRUE)
 if (length(myArgs) >= 1 && nzchar(myArgs[1])) mapNames = strsplit(myArgs[1], ",")[[1]]
@@ -137,8 +138,11 @@ computeMapPanels = function(mapName)
   # 5% trimmed mean (drops the top/bottom 5% of barcodes at each position before
   # averaging) -- less sensitive to the single most extreme outlier barcode than a plain
   # mean, without collapsing to 0 the way the per-position median did (see header comment).
+  # Below minBarcodesToPlot, skip the line entirely rather than plot it: with too few
+  # barcodes, 5% trimming barely removes anything (n=20 -> 1 barcode off each end), so a
+  # single outlier can still dominate the whole line.
   meanSignal = function(idx) {
-    if (length(idx) == 0) return(NULL)
+    if (length(idx) < minBarcodesToPlot) return(NULL)
     smoothSignal(apply(sigMat[idx, , drop = FALSE], 2, mean, trim = 0.05, na.rm = TRUE))
   }
 

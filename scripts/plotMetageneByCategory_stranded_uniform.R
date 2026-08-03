@@ -32,6 +32,7 @@ expListFile = "exp_list.txt"
 bwPrefix = "PRO_Lis"
 window = 500
 smoothWindow = 10
+minBarcodesToPlot = 20  # panels/expression-bins with fewer barcodes than this are skipped
 
 myArgs = commandArgs(trailingOnly = TRUE)
 if (length(myArgs) >= 1 && nzchar(myArgs[1])) mapNames = strsplit(myArgs[1], ",")[[1]]
@@ -155,8 +156,10 @@ computeMapPanels = function(mapName)
 
   # Per-position plain mean across barcodes, smoothed -- see header comment for why this is
   # plain mean rather than the non-stranded sibling's 5% trimmed mean or median.
+  # Below minBarcodesToPlot, skip the line entirely rather than plot a noisy/unreliable
+  # average of too few barcodes.
   meanSignal = function(idx) {
-    if (length(idx) == 0) return(NULL)
+    if (length(idx) < minBarcodesToPlot) return(NULL)
     smoothSignal(colMeans(sigMat[idx, , drop = FALSE], na.rm = TRUE))
   }
 
