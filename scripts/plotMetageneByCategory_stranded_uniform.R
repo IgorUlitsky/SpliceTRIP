@@ -8,15 +8,18 @@
 # values as negative (confirmed on PRO_Lis.minus.bw: range -15.5..0) purely so +/- tracks
 # can be overlaid with opposite sign in a genome browser, so those values are negated back
 # to a plain magnitude here before anything is compared/averaged. Both strands are then
-# unified into one signal matrix at the metagene stage -- mean per position (not median: for
-# a sparse point-signal assay like PRO-seq, checked empirically on real data that only ~53%
-# of barcodes have *any* nonzero signal anywhere in their whole +-500bp window, so the
-# per-position median -- and even the 75th percentile -- comes out exactly 0 at every single
-# position; median/IQR is only meaningful for broad-coverage tracks like the non-stranded
-# sibling's ATAC/H3K/POLR2A, not this kind of sparse data) -- see that script for the full
-# annotation/categorization pipeline, unchanged here, including the 4 expression-level
-# sub-lines (1<=exp.log10<2, 2<=exp.log10<3, 3<=exp.log10<4, exp.log10>=4) drawn within
-# each of the four exp.log10>=1-gated category panels.
+# unified into one signal matrix at the metagene stage -- plain (untrimmed) mean per
+# position, unlike the non-stranded sibling's 5% trimmed mean: checked empirically on real
+# data that only ~53% of barcodes have *any* nonzero signal anywhere in their whole
+# +-500bp window, so for a sparse point-signal assay like PRO-seq, at any single position
+# far fewer than 5% of barcodes have signal there -- both the median and even a 5% trimmed
+# mean come out exactly 0 at every position (trimming the top 5% removes the only nonzero
+# values). Plain mean is the only one of the three that isn't degenerate here; median/IQR
+# and trimmed-mean are meaningful for broad-coverage tracks like the non-stranded sibling's
+# ATAC/H3K/POLR2A, not this kind of sparse data. See that script for the full
+# annotation/categorization pipeline, unchanged here, including the 3 expression-level
+# sub-lines (1<=exp.log10<2, 2<=exp.log10<3, exp.log10>=3) drawn within each of the four
+# exp.log10>=1-gated category panels.
 #####
 library(rtracklayer)
 library(GenomicRanges)
@@ -45,8 +48,8 @@ panelColors = setNames(c("black", brewer.pal(5, "Set1"), "gray50"), panelLevels)
 # Categories whose defining rule already requires exp.log10>=1 -- these get split into 4
 # expression-level lines per panel instead of one aggregate line.
 expressedCats = c("MANE_expressed", "GENCODE", "Antisense_expressed", "Intergenic_expressed")
-expBinLabels = c("1<=exp.log10<2", "2<=exp.log10<3", "3<=exp.log10<4", "exp.log10>=4")
-expBinBreaks = c(1, 2, 3, 4, Inf)
+expBinLabels = c("1<=exp.log10<2", "2<=exp.log10<3", "exp.log10>=3")
+expBinBreaks = c(1, 2, 3, Inf)
 
 # Centered moving average; leaves smoothWindow/2 NAs at each edge (a small, standard
 # smoothing edge effect -- plot() just leaves a short gap there).
@@ -150,8 +153,8 @@ computeMapPanels = function(mapName)
     }
   }
 
-  # Per-position mean across barcodes, smoothed -- mean, not median (see header comment: for
-  # a sparse assay like PRO-seq, the per-position median is 0 almost everywhere).
+  # Per-position plain mean across barcodes, smoothed -- see header comment for why this is
+  # plain mean rather than the non-stranded sibling's 5% trimmed mean or median.
   meanSignal = function(idx) {
     if (length(idx) == 0) return(NULL)
     smoothSignal(colMeans(sigMat[idx, , drop = FALSE], na.rm = TRUE))
@@ -195,7 +198,7 @@ for (mapName in mapNames) {
         title(main = paste0(mapName, " / ", p, " (n=0)"))
         next
       }
-      shades = setNames(colorRampPalette(c("gray80", panelColors[p]))(4), expBinLabels)
+      shades = setNames(colorRampPalette(c("gray80", panelColors[p]))(length(expBinLabels)), expBinLabels)
       plot(relPos, rep(NA_real_, length(relPos)), type = "n", ylim = sharedYlim,
            main = paste0(mapName, " / ", p, " (n=", pd$n, ")"),
            xlab = "Position relative to barcode (nt)", ylab = paste(bwPrefix, "signal"))

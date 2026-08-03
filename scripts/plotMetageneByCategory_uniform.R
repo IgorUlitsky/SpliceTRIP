@@ -9,13 +9,13 @@
 # exclusive expression/annotation categories (first-match-wins, in the order below;
 # "Other" catches whatever matches none of the specific rules), prints the count in each,
 # then plots a metagene (-500..+500 around each barcode, strand-flipped to a consistent
-# 5'->3' orientation using the barcode's own Strand, mean per position, smoothed with a
-# 10nt moving average) of a K562 ENCODE bigwig track (YYY). Panels: "All" (every
+# 5'->3' orientation using the barcode's own Strand, 5% trimmed mean per position, smoothed
+# with a 10nt moving average) of a K562 ENCODE bigwig track (YYY). Panels: "All" (every
 # integration) plus each category; the four categories that require exp.log10>=1
 # (MANE_expressed, GENCODE, Antisense_expressed, Intergenic_expressed) are further split
-# into 4 expression-level lines within their own panel (1<=exp.log10<2, 2<=exp.log10<3,
-# 3<=exp.log10<4, exp.log10>=4, light-to-dark shades of that panel's color), since
-# "expressed" barcodes span a wide range of actual expression. One combined PDF: a grid
+# into 3 expression-level lines within their own panel (1<=exp.log10<2, 2<=exp.log10<3,
+# exp.log10>=3, light-to-dark shades of that panel's color), since "expressed" barcodes
+# span a wide range of actual expression. One combined PDF: a grid
 # with one row per map and one column per panel, y axis shared within each row (map).
 #####
 library(rtracklayer)
@@ -45,8 +45,8 @@ panelColors = setNames(c("black", brewer.pal(5, "Set1"), "gray50"), panelLevels)
 # Categories whose defining rule already requires exp.log10>=1 -- these get split into 4
 # expression-level lines per panel instead of one aggregate line.
 expressedCats = c("MANE_expressed", "GENCODE", "Antisense_expressed", "Intergenic_expressed")
-expBinLabels = c("1<=exp.log10<2", "2<=exp.log10<3", "3<=exp.log10<4", "exp.log10>=4")
-expBinBreaks = c(1, 2, 3, 4, Inf)
+expBinLabels = c("1<=exp.log10<2", "2<=exp.log10<3", "exp.log10>=3")
+expBinBreaks = c(1, 2, 3, Inf)
 
 # Centered moving average; leaves smoothWindow/2 NAs at each edge (a small, standard
 # smoothing edge effect -- plot() just leaves a short gap there).
@@ -134,9 +134,12 @@ computeMapPanels = function(mapName)
     v
   }))
 
+  # 5% trimmed mean (drops the top/bottom 5% of barcodes at each position before
+  # averaging) -- less sensitive to the single most extreme outlier barcode than a plain
+  # mean, without collapsing to 0 the way the per-position median did (see header comment).
   meanSignal = function(idx) {
     if (length(idx) == 0) return(NULL)
-    smoothSignal(colMeans(sigMat[idx, , drop = FALSE], na.rm = TRUE))
+    smoothSignal(apply(sigMat[idx, , drop = FALSE], 2, mean, trim = 0.05, na.rm = TRUE))
   }
 
   panels = lapply(panelLevels, function(p) {
@@ -177,7 +180,7 @@ for (mapName in mapNames) {
         title(main = paste0(mapName, " / ", p, " (n=0)"))
         next
       }
-      shades = setNames(colorRampPalette(c("gray80", panelColors[p]))(4), expBinLabels)
+      shades = setNames(colorRampPalette(c("gray80", panelColors[p]))(length(expBinLabels)), expBinLabels)
       plot(relPos, rep(NA_real_, length(relPos)), type = "n", ylim = sharedYlim,
            main = paste0(mapName, " / ", p, " (n=", pd$n, ")"),
            xlab = "Position relative to barcode (nt)", ylab = paste(bwName, "signal"))
