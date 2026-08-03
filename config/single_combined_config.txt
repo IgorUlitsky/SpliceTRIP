@@ -173,3 +173,10 @@ H3K27me3
 H3K4me3
 H3K27ac
 ENCSR000EHL-POLR2A
+
+### METAGENE_BIGWIGS_STRANDED
+# one <prefix> per line -- HISTONE_BW_DIR/<prefix>.plus.bw + <prefix>.minus.bw (a
+# strand-specific pair, e.g. PRO-seq). Read by scripts/plotMetageneByCategory_stranded_uniform.R
+# as its 3rd CLI arg, same "not parsed automatically, source of truth for bsub looping"
+# role as METAGENE_BIGWIGS above.
+PRO_Lis
