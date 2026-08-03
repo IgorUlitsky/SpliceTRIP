@@ -6,11 +6,9 @@
 # /home/projects/ulitsky/shared/data/human/TRIP/single_combined/{5ss,CPA,5ss_noP,CPA_noP}.txt
 # manifests and combos.txt (48 rows, verbatim).
 #
-# NOTE: 4 rows in COMBOS below use mapName=5ss_noP together with a Norm/exp sample named
-# "...CPA_noP..." (from the real combos.txt, rows for 3intron_CPA_noP_*). This is
-# preserved verbatim from production data rather than silently corrected — looks like it
-# may be a copy/paste mismatch in the source combos.txt (CPA_noP construct mislabeled as
-# 5ss_noP), worth double-checking before treating those 4 rows' output as trustworthy.
+# 2026-08-03: the source combos.txt's 4 rows for 3intron_CPA_noP_* originally had
+# mapName=5ss_noP instead of CPA_noP (a copy/paste mismatch, confirmed and fixed upstream
+# in the real combos.txt) -- COMBOS below now matches the corrected source.
 
 ### GLOBAL
 BARCODE_LEN	18
@@ -154,10 +152,10 @@ CPA_noP	Norm_CPA_noP_rep2_S90	nonspliced_CPA_noP_pool2_rep2_S4	18	FALSE
 5ss_noP	Norm_5ss_noP_rep1_S91	3intron_5ss_noP_Pool1_S95	18	FALSE
 5ss_noP	Norm_5ss_noP_rep2_S92	3intron_5ss_noP_Pool2_Rep2_S107	18	FALSE
 5ss_noP	Norm_5ss_noP_rep2_S92	3intron_5ss_noP_Pool2_S96	18	FALSE
-5ss_noP	Norm_CPA_noP_rep1_S89	3intron_CPA_noP_Pool1_Rep2_S104	18	FALSE
-5ss_noP	Norm_CPA_noP_rep1_S89	3intron_CPA_noP_Pool1_S93	18	FALSE
-5ss_noP	Norm_CPA_noP_rep2_S90	3intron_CPA_noP_Pool2_Rep2_S105	18	FALSE
-5ss_noP	Norm_CPA_noP_rep2_S90	3intron_CPA_noP_Pool2_S94	18	FALSE
+CPA_noP	Norm_CPA_noP_rep1_S89	3intron_CPA_noP_Pool1_Rep2_S104	18	FALSE
+CPA_noP	Norm_CPA_noP_rep1_S89	3intron_CPA_noP_Pool1_S93	18	FALSE
+CPA_noP	Norm_CPA_noP_rep2_S90	3intron_CPA_noP_Pool2_Rep2_S105	18	FALSE
+CPA_noP	Norm_CPA_noP_rep2_S90	3intron_CPA_noP_Pool2_S94	18	FALSE
 CPA_noP	Norm_CPA_noP_rep1_S89	DownstreamCPA_CPA_noP_Pool1_Rep2_S108	18	FALSE
 CPA_noP	Norm_CPA_noP_rep1_S89	DownstreamCPA_CPA_noP_Pool1_S97	18	FALSE
 CPA_noP	Norm_CPA_noP_rep2_S90	DownstreamCPA_CPA_noP_Pool2_Rep2_S109	18	FALSE
