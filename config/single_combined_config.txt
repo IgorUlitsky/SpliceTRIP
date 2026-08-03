@@ -160,3 +160,16 @@ CPA_noP	Norm_CPA_noP_rep1_S89	DownstreamCPA_CPA_noP_Pool1_Rep2_S108	18	FALSE
 CPA_noP	Norm_CPA_noP_rep1_S89	DownstreamCPA_CPA_noP_Pool1_S97	18	FALSE
 CPA_noP	Norm_CPA_noP_rep2_S90	DownstreamCPA_CPA_noP_Pool2_Rep2_S109	18	FALSE
 CPA_noP	Norm_CPA_noP_rep2_S90	DownstreamCPA_CPA_noP_Pool2_S98	18	FALSE
+
+### METAGENE_BIGWIGS
+# one <name> per line -- HISTONE_BW_DIR/<name>.K562.bw. Not parsed by
+# scripts/plotMetageneByCategory_uniform.R itself (it takes a single bigWig name as its
+# 3rd CLI arg); this list is the source of truth for which bigWigs to loop over when
+# bsub-submitting one run per bigWig (one metagene-by-category grid PDF each: all 4
+# single_combined maps as rows, one column per expression/annotation category).
+ATAC
+H3K36me3
+H3K27me3
+H3K4me3
+H3K27ac
+ENCSR000EHL-POLR2A
