@@ -9,13 +9,14 @@
 # exclusive expression/annotation categories (first-match-wins, in the order below;
 # "Other" catches whatever matches none of the specific rules), prints the count in each,
 # then plots a metagene (-500..+500 around each barcode, strand-flipped to a consistent
-# 5'->3' orientation using the barcode's own Strand) of a K562 ENCODE bigwig track (YYY)
-# across those categories plus an "All" panel (every integration, unfiltered by category)
-# as the leftmost column -- median per position (not mean, so a few very high-signal
-# barcodes don't dominate the line) with a shaded 25th-75th percentile ribbon, both
-# smoothed with a 10nt moving average. One combined PDF: a grid with one row per map and
-# one column per panel (All + each category), y axis shared within each row (map), one
-# color per panel.
+# 5'->3' orientation using the barcode's own Strand, mean per position, smoothed with a
+# 10nt moving average) of a K562 ENCODE bigwig track (YYY). Panels: "All" (every
+# integration) plus each category; the four categories that require exp.log10>=1
+# (MANE_expressed, GENCODE, Antisense_expressed, Intergenic_expressed) are further split
+# into 4 expression-level lines within their own panel (1<=exp.log10<2, 2<=exp.log10<3,
+# 3<=exp.log10<4, exp.log10>=4, light-to-dark shades of that panel's color), since
+# "expressed" barcodes span a wide range of actual expression. One combined PDF: a grid
+# with one row per map and one column per panel, y axis shared within each row (map).
 #####
 library(rtracklayer)
 library(GenomicRanges)
@@ -41,6 +42,12 @@ catLevels = c("MANE_expressed", "GENCODE", "Antisense_expressed", "Intergenic_ex
 panelLevels = c("All", catLevels)
 panelColors = setNames(c("black", brewer.pal(5, "Set1"), "gray50"), panelLevels)
 
+# Categories whose defining rule already requires exp.log10>=1 -- these get split into 4
+# expression-level lines per panel instead of one aggregate line.
+expressedCats = c("MANE_expressed", "GENCODE", "Antisense_expressed", "Intergenic_expressed")
+expBinLabels = c("1<=exp.log10<2", "2<=exp.log10<3", "3<=exp.log10<4", "exp.log10>=4")
+expBinBreaks = c(1, 2, 3, 4, Inf)
+
 # Centered moving average; leaves smoothWindow/2 NAs at each edge (a small, standard
 # smoothing edge effect -- plot() just leaves a short gap there).
 smoothSignal = function(x, window = smoothWindow) as.numeric(stats::filter(x, rep(1 / window, window), sides = 2))
@@ -51,7 +58,8 @@ chromSizes = seqlengths(bw)
 relPos = -window:window
 
 # ---- per-map: annotate, categorize, and average the (strand-flipped) bigwig signal per
-# panel -- returns a named list (by panelLevels) of list(n=, signal=) for one map ----------
+# panel -- returns a named list (by panelLevels) of either list(n=, signal=) (single line)
+# or list(n=, bins=<one list(n=,signal=) per expBinLabels>) (expressedCats panels) --------
 computeMapPanels = function(mapName)
 {
   cat("\n====", mapName, "====\n")
@@ -126,17 +134,24 @@ computeMapPanels = function(mapName)
     v
   }))
 
-  # Per-position median + 25th/75th percentile across barcodes, each smoothed the same way
-  # the mean used to be -- median instead of mean so a handful of very high-signal barcodes
-  # can't dominate the line; the ribbon shows the spread that a single summary line hides.
+  meanSignal = function(idx) {
+    if (length(idx) == 0) return(NULL)
+    smoothSignal(colMeans(sigMat[idx, , drop = FALSE], na.rm = TRUE))
+  }
+
   panels = lapply(panelLevels, function(p) {
     idx = if (p == "All") seq_len(nrow(used)) else which(used$Category == p)
-    if (length(idx) == 0) return(list(n = 0, median = NULL, q25 = NULL, q75 = NULL))
-    mat = sigMat[idx, , drop = FALSE]
-    list(n = length(idx),
-         median = smoothSignal(apply(mat, 2, median, na.rm = TRUE)),
-         q25 = smoothSignal(apply(mat, 2, quantile, probs = 0.25, na.rm = TRUE)),
-         q75 = smoothSignal(apply(mat, 2, quantile, probs = 0.75, na.rm = TRUE)))
+    if (p %in% expressedCats) {
+      expBin = cut(used$exp.log10[idx], breaks = expBinBreaks, labels = expBinLabels,
+                   right = FALSE, include.lowest = TRUE)
+      bins = lapply(expBinLabels, function(bl) {
+        sub = idx[which(expBin == bl)]
+        list(n = length(sub), signal = meanSignal(sub))
+      })
+      names(bins) = expBinLabels
+      return(list(n = length(idx), signal = NULL, bins = bins))
+    }
+    list(n = length(idx), signal = meanSignal(idx), bins = NULL)
   })
   names(panels) = panelLevels
   panels
@@ -151,24 +166,37 @@ pdf(outFile, width = 3.2 * length(panelLevels), height = 3.2 * length(mapNames),
 par(mfrow = c(length(mapNames), length(panelLevels)))
 for (mapName in mapNames) {
   mapPanels = allPanels[[mapName]]
-  sharedYlim = range(unlist(lapply(mapPanels, function(pd) c(pd$q25, pd$q75))), na.rm = TRUE)
+  sharedYlim = range(unlist(lapply(mapPanels, function(pd) {
+    if (!is.null(pd$bins)) unlist(lapply(pd$bins, "[[", "signal")) else pd$signal
+  })), na.rm = TRUE)
   for (p in panelLevels) {
     pd = mapPanels[[p]]
-    if (is.null(pd$median)) {
+    if (!is.null(pd$bins)) {
+      if (all(sapply(pd$bins, function(b) is.null(b$signal)))) {
+        plot.new()
+        title(main = paste0(mapName, " / ", p, " (n=0)"))
+        next
+      }
+      shades = setNames(colorRampPalette(c("gray80", panelColors[p]))(4), expBinLabels)
+      plot(relPos, rep(NA_real_, length(relPos)), type = "n", ylim = sharedYlim,
+           main = paste0(mapName, " / ", p, " (n=", pd$n, ")"),
+           xlab = "Position relative to barcode (nt)", ylab = paste(bwName, "signal"))
+      for (bl in expBinLabels) {
+        if (is.null(pd$bins[[bl]]$signal)) next
+        lines(relPos, pd$bins[[bl]]$signal, lwd = 2, col = shades[bl])
+      }
+      abline(v = 0, lty = 2, col = "gray50")
+      legend("topright", legend = paste0(expBinLabels, " (n=", sapply(pd$bins, "[[", "n"), ")"),
+             col = shades, lwd = 2, cex = 0.55, bty = "n")
+    } else if (is.null(pd$signal)) {
       plot.new()
       title(main = paste0(mapName, " / ", p, " (n=0)"))
-      next
+    } else {
+      plot(relPos, pd$signal, type = "l", lwd = 2, col = panelColors[p], ylim = sharedYlim,
+           main = paste0(mapName, " / ", p, " (n=", pd$n, ")"),
+           xlab = "Position relative to barcode (nt)", ylab = paste(bwName, "signal"))
+      abline(v = 0, lty = 2, col = "gray50")
     }
-    # Trim the NA edges the smoothing filter leaves (same positions dropped from all three
-    # series) so polygon()/lines() don't choke on NA coordinates.
-    keep = !is.na(pd$median) & !is.na(pd$q25) & !is.na(pd$q75)
-    x = relPos[keep]; med = pd$median[keep]; q25 = pd$q25[keep]; q75 = pd$q75[keep]
-    plot(x, med, type = "n", ylim = sharedYlim,
-         main = paste0(mapName, " / ", p, " (n=", pd$n, ")"),
-         xlab = "Position relative to barcode (nt)", ylab = paste(bwName, "signal"))
-    polygon(c(x, rev(x)), c(q75, rev(q25)), col = adjustcolor(panelColors[p], alpha.f = 0.3), border = NA)
-    lines(x, med, lwd = 2, col = panelColors[p])
-    abline(v = 0, lty = 2, col = "gray50")
   }
 }
 dev.off()
