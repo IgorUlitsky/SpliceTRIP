@@ -9,11 +9,13 @@
 # exclusive expression/annotation categories (first-match-wins, in the order below;
 # "Other" catches whatever matches none of the specific rules), prints the count in each,
 # then plots a metagene (-500..+500 around each barcode, strand-flipped to a consistent
-# 5'->3' orientation using the barcode's own Strand, smoothed with a 10nt moving average)
-# of a K562 ENCODE bigwig track (YYY) across those categories plus an "All" panel (every
-# integration, unfiltered by category) as the leftmost column. One combined PDF: a
-# grid with one row per map and one column per panel (All + each category), y axis shared
-# within each row (map), one color per panel.
+# 5'->3' orientation using the barcode's own Strand) of a K562 ENCODE bigwig track (YYY)
+# across those categories plus an "All" panel (every integration, unfiltered by category)
+# as the leftmost column -- median per position (not mean, so a few very high-signal
+# barcodes don't dominate the line) with a shaded 25th-75th percentile ribbon, both
+# smoothed with a 10nt moving average. One combined PDF: a grid with one row per map and
+# one column per panel (All + each category), y axis shared within each row (map), one
+# color per panel.
 #####
 library(rtracklayer)
 library(GenomicRanges)
@@ -124,10 +126,17 @@ computeMapPanels = function(mapName)
     v
   }))
 
+  # Per-position median + 25th/75th percentile across barcodes, each smoothed the same way
+  # the mean used to be -- median instead of mean so a handful of very high-signal barcodes
+  # can't dominate the line; the ribbon shows the spread that a single summary line hides.
   panels = lapply(panelLevels, function(p) {
     idx = if (p == "All") seq_len(nrow(used)) else which(used$Category == p)
+    if (length(idx) == 0) return(list(n = 0, median = NULL, q25 = NULL, q75 = NULL))
+    mat = sigMat[idx, , drop = FALSE]
     list(n = length(idx),
-         signal = if (length(idx) > 0) smoothSignal(colMeans(sigMat[idx, , drop = FALSE], na.rm = TRUE)) else NULL)
+         median = smoothSignal(apply(mat, 2, median, na.rm = TRUE)),
+         q25 = smoothSignal(apply(mat, 2, quantile, probs = 0.25, na.rm = TRUE)),
+         q75 = smoothSignal(apply(mat, 2, quantile, probs = 0.75, na.rm = TRUE)))
   })
   names(panels) = panelLevels
   panels
@@ -142,17 +151,23 @@ pdf(outFile, width = 3.2 * length(panelLevels), height = 3.2 * length(mapNames),
 par(mfrow = c(length(mapNames), length(panelLevels)))
 for (mapName in mapNames) {
   mapPanels = allPanels[[mapName]]
-  sharedYlim = range(unlist(lapply(mapPanels, "[[", "signal")), na.rm = TRUE)
+  sharedYlim = range(unlist(lapply(mapPanels, function(pd) c(pd$q25, pd$q75))), na.rm = TRUE)
   for (p in panelLevels) {
     pd = mapPanels[[p]]
-    if (is.null(pd$signal)) {
+    if (is.null(pd$median)) {
       plot.new()
       title(main = paste0(mapName, " / ", p, " (n=0)"))
       next
     }
-    plot(relPos, pd$signal, type = "l", lwd = 2, col = panelColors[p], ylim = sharedYlim,
+    # Trim the NA edges the smoothing filter leaves (same positions dropped from all three
+    # series) so polygon()/lines() don't choke on NA coordinates.
+    keep = !is.na(pd$median) & !is.na(pd$q25) & !is.na(pd$q75)
+    x = relPos[keep]; med = pd$median[keep]; q25 = pd$q25[keep]; q75 = pd$q75[keep]
+    plot(x, med, type = "n", ylim = sharedYlim,
          main = paste0(mapName, " / ", p, " (n=", pd$n, ")"),
          xlab = "Position relative to barcode (nt)", ylab = paste(bwName, "signal"))
+    polygon(c(x, rev(x)), c(q75, rev(q25)), col = adjustcolor(panelColors[p], alpha.f = 0.3), border = NA)
+    lines(x, med, lwd = 2, col = panelColors[p])
     abline(v = 0, lty = 2, col = "gray50")
   }
 }
