@@ -68,9 +68,12 @@ echo
 # (one bsub per independent item, then block on the explicit job IDs). Stage 04's samples
 # are fully independent -- each reads and writes only its own <name>.* files inside its own
 # run directory -- so they are submitted concurrently instead of looped sequentially, which
-# is what run_pipeline.sh already does for its own stage 04. Stages 05+ stay sequential:
-# 05 builds its cross-group contamination reference from EVERY sample's
-# .filtered_barcodes.bed, so it is a genuine barrier.
+# is what run_pipeline.sh already does for its own stage 04. Every later stage is submitted
+# the same way -- one job per contamination batch (05), per construct (06, 09) and per COMBOS
+# row (07) -- with a waitForJobs barrier between stages. The barriers are the real
+# dependencies: 05 builds its cross-group contamination reference from EVERY sample's
+# .filtered_barcodes.bed, 06 consumes every sample's .retained_barcodes.bed, and 08-10 need
+# all of 07's combined_counts.txt. Within a stage the items are independent.
 #
 # waitForJobs polls each job by its own ID and requires DONE. Deliberately not
 # `bsub -w "done(<jobname>)"`: with several jobs sharing a name LSF applies that to the most
@@ -81,6 +84,7 @@ USE_LSF=${USE_LSF:-1}
 LSF_QUEUE=${LSF_QUEUE:-gsla-cpu}
 STAGE04_MEM=${STAGE04_MEM:-8000}
 R_MOD=${R_MOD:-R/4.3.1-foss-2022b}
+BEDTOOLS_MOD=${BEDTOOLS_MOD:-BEDTools/2.31.1-GCC-13.2.0}
 JOBIDS=()
 
 submitOrRun() {
@@ -121,7 +125,7 @@ waitForJobs() {
   done
   JOBIDS=()
   if [ "$failed" = "1" ]; then
-    echo "One or more stage-04 jobs failed -- aborting pipeline." >&2
+    echo "One or more jobs in this stage failed -- aborting pipeline." >&2
     exit 1
   fi
 }
@@ -159,8 +163,10 @@ while read -r batch; do
   FILELIST="$WORK/.pipeline_fileList.${batch}.txt"
   awk -F'\t' -v b="$batch" '($6==""?"default":$6)==b {print $1"\t"$5}' "$PARSED/FASTQ_MAPS.tsv" > "$FILELIST"
   echo "-- batch: $batch ($(wc -l < "$FILELIST") sample(s)) --"
-  Rscript "$SCRIPTS/05_filterContaminants_uniform.R" "$WORK/" "$(basename "$FILELIST")" "$CONT_FACTOR"
+  submitOrRun "stage05_${batch}.log" 8000 1 "$R_MOD" \
+    "cd '$WORK' && Rscript '$SCRIPTS/05_filterContaminants_uniform.R' '$WORK/' '$(basename "$FILELIST")' '$CONT_FACTOR'"
 done <<< "$BATCHES"
+waitForJobs
 echo
 
 # =============================================================================
@@ -173,8 +179,10 @@ while read -r mapName; do
   manifest="$WORK/${mapName}.txt"
   awk -F'\t' -v m="$mapName" '$5==m{print $1".retained_barcodes.bed"}' "$PARSED/FASTQ_MAPS.tsv" > "$manifest"
   echo "-- $mapName ($(wc -l < "$manifest") sample(s)) --"
-  Rscript "$SCRIPTS/06_get_genuine_barcodes.R" "$WORK/" "$(basename "$manifest")" "$BARCODE_LEN" "$DPNII_BED"
+  submitOrRun "stage06_${mapName}.log" 8000 1 "$R_MOD" \
+    "cd '$WORK' && Rscript '$SCRIPTS/06_get_genuine_barcodes.R' '$WORK/' '$(basename "$manifest")' '$BARCODE_LEN' '$DPNII_BED'"
 done <<< "$MAPNAMES"
+waitForJobs
 echo
 
 # =============================================================================
@@ -184,16 +192,20 @@ echo "=== Stage 07: normalizeTRIP (combined_counts.txt) ==="
 while IFS=$'\t' read -r mapName normSample expSample effLength revComp oneMismatch; do
   [ -z "$mapName" ] && continue
   echo "-- map=$mapName norm=$normSample exp=$expSample --"
-  args=("$WORK/" "$WORK/" "${mapName}.txt" "$normSample" "$expSample" "$effLength" "$revComp")
-  if [ "${oneMismatch:-}" = "yes" ]; then args+=("oneMismatch"); fi
-  Rscript "$SCRIPTS/07_normalizeTRIP_MM.R" "${args[@]}"
+  argstr="'$WORK/' '$WORK/' '${mapName}.txt' '$normSample' '$expSample' '$effLength' '$revComp'"
+  if [ "${oneMismatch:-}" = "yes" ]; then argstr="$argstr 'oneMismatch'"; fi
+  submitOrRun "stage07_${expSample}.log" 8000 1 "$R_MOD" \
+    "cd '$WORK' && Rscript '$SCRIPTS/07_normalizeTRIP_MM.R' $argstr"
 done < "$PARSED/COMBOS.tsv"
+waitForJobs
 echo
 
 if [ -s "$PARSED/SPLICED_UNSPLICED.tsv" ]; then
   echo "=== Stage 14: combineSplicedUnsplicedPairs ==="
   cp "$PARSED/SPLICED_UNSPLICED.tsv" "$WORK/spliced_unspliced.txt"
-  Rscript "$SCRIPTS/14_combineSplicedUnsplicedPairs_uniform.R" "$WORK/"
+  submitOrRun "stage14_combineSplicedUnspliced.log" 8000 1 "$R_MOD" \
+    "cd '$WORK' && Rscript '$SCRIPTS/14_combineSplicedUnsplicedPairs_uniform.R' '$WORK/'"
+  waitForJobs
   echo
 fi
 
@@ -208,21 +220,25 @@ while read -r mapName; do
 done <<< "$MAPNAMES"
 
 echo "=== Stage 08: make_tracks (MANE/gencode/repeats intersects) ==="
-bash "$SCRIPTS/08_make_tracks_genuine_barcodes.sh" "$(basename "$NAMELIST")" \
-  "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$REPEATS_BED"
+submitOrRun "stage08_make_tracks.log" 4000 1 "$BEDTOOLS_MOD" \
+  "cd '$WORK' && bash '$SCRIPTS/08_make_tracks_genuine_barcodes.sh' '$(basename "$NAMELIST")' '$MANE_BED' '$MANE_INTRONS_BED' '$GENCODE_NONCODING_BED' '$REPEATS_BED'"
+waitForJobs
 echo
 
 echo "=== Stage 09: gc_content (one run per construct) ==="
 while read -r mapName; do
   [ -z "$mapName" ] && continue
   echo "-- $mapName --"
-  bash "$SCRIPTS/09_gc_content_single_genuine_barcodes.sh" "${mapName}.txt" "$CHROM_SIZES" "$GENOME_FASTA"
+  submitOrRun "stage09_${mapName}.log" 4000 1 "$BEDTOOLS_MOD" \
+    "cd '$WORK' && bash '$SCRIPTS/09_gc_content_single_genuine_barcodes.sh' '${mapName}.txt' '$CHROM_SIZES' '$GENOME_FASTA'"
 done <<< "$MAPNAMES"
+waitForJobs
 echo
 
 echo "=== Stage 10: table_annotation (annotated_tables.txt) ==="
-Rscript "$SCRIPTS/10_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
-  "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$TRANS2GENE" "$MANE_EXPRESSION" "$CHROMHMM_BED" "$SPIN_BED"
+submitOrRun "stage10_table_annotation.log" 16000 1 "$R_MOD" \
+  "cd '$WORK' && Rscript '$SCRIPTS/10_table_annotation_genuine_barcodes.R' '$WORK/' '$(basename "$NAMELIST")' '$MANE_BED' '$MANE_INTRONS_BED' '$GENCODE_NONCODING_BED' '$TRANS2GENE' '$MANE_EXPRESSION' '$CHROMHMM_BED' '$SPIN_BED'"
+waitForJobs
 echo
 
 echo "=== done ==="
