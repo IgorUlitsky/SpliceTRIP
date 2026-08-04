@@ -5,7 +5,7 @@
 # Usage
 #   bash backup_before_resume_introntrip_combined.sh <config.txt> <work_dir> [backup_root]
 #
-# Scoped exactly to the outputs of stages 04-10 + 14 (nothing else is touched by the
+# Scoped exactly to the outputs of stages 04-11 (nothing else is touched by the
 # rerun, so nothing else is copied -- a full copy of IntronTRIP_combined/ would be 13 GB
 # of mostly untouched cutadapt counts; this set is ~5 GB):
 #
@@ -18,13 +18,13 @@
 #     .retained_barcodes_genuine.bed                                (stage 06)
 #     .MANE_all/.MANE_exonic/.MANE_exonic_antisense/.MANE_all_antisense/
 #     .MANE_introns_antisense/.MANE_introns_sense/.gencode_noncoding_all/.repeats .txt
-#                                                                   (stage 08)
+#                                                                   (stage 10)
 #     _tmp_extended.bed  _sequences.fasta  _gc_content.txt  _with_gc.bed
-#                                                                   (stage 09)
-#     .annotated_tables.txt  .annotated_table_used.txt              (stage 10)
+#                                                                   (stage 10)
+#     .annotated_tables.txt  .annotated_table_used.txt              (stage 11)
 #
 #   in <work_dir>, per ### COMBOS expSample:  .bed  .combined_counts.txt   (stage 07)
-#   in <work_dir>, per ### SPLICED_UNSPLICED outName:                      (stage 14)
+#   in <work_dir>, per ### SPLICED_UNSPLICED outName:                      (stage 08)
 #     .spliced_unspliced / .spliced_to_total / .spliced_and_unspliced_to_total
 #       .combined_counts.txt
 #
@@ -40,7 +40,7 @@ WORK=${2:?"usage: backup_before_resume_introntrip_combined.sh <config.txt> <work
 WORK=${WORK%/}
 BACKUP_ROOT=${3:-"$(dirname "$WORK")/backup_IntronTRIP_preRerun_$(date +%Y%m%d_%H%M)"}
 
-echo "=== Backup before IntronTRIP stage 04-10/14 rerun ==="
+echo "=== Backup before IntronTRIP stage 04-11 rerun ==="
 echo "config:      $CONFIG"
 echo "work dir:    $WORK"
 echo "backup root: $BACKUP_ROOT"
@@ -119,9 +119,9 @@ while read -r expSample; do
 done < <(awk -F'\t' '{print $3}' "$PARSED/COMBOS.tsv" | sort -u)
 
 # ---------------------------------------------------------------------------
-# Stage 14 outputs, per SPLICED_UNSPLICED row
+# Stage 08 outputs, per SPLICED_UNSPLICED row
 # ---------------------------------------------------------------------------
-echo "--- stage 14 splicing-ratio outputs ($(basename "$WORK")) ---"
+echo "--- stage 08 splicing-ratio outputs ($(basename "$WORK")) ---"
 while IFS=$'\t' read -r outName spliced unspliced total; do
   [ -z "$outName" ] && continue
   for suf in .spliced_unspliced.combined_counts.txt \

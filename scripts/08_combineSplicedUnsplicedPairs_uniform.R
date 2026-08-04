@@ -1,5 +1,5 @@
 # =============================================================================
-# Stage 14 — combine spliced/unspliced/total combined_counts.txt triplets into
+# Stage 08 — combine spliced/unspliced/total combined_counts.txt triplets into
 # splicing-ratio readouts
 # =============================================================================
 # Faithful port of igoru's ~/R/trip/IntronTrip/combineSplicedUnsplicedPairs_uniform.R --
@@ -10,7 +10,7 @@
 # tables per row.
 #
 # Usage
-#   Rscript 14_combineSplicedUnsplicedPairs_uniform.R <path>
+#   Rscript 08_combineSplicedUnsplicedPairs_uniform.R <path>
 #
 # Input   <path>/spliced_unspliced.txt -- outName<TAB>splicedExpName<TAB>unsplicedExpName<TAB>totalExpName
 #         <path>/<splicedExpName|unsplicedExpName|totalExpName>.combined_counts.txt (stage 07)

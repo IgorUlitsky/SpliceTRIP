@@ -1,6 +1,6 @@
 # Bundled reference tracks
 
-Genome annotation tracks used by the `annotated` target (stages 08-10) that are small
+Genome annotation tracks used by the `annotated` target (stages 09-11) that are small
 enough to bundle directly in the repo, for anyone running this pipeline without access to
 the Weizmann cluster's shared storage. Point the matching `### GLOBAL` config key at the
 path here instead of the cluster default to use them.

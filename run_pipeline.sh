@@ -2,7 +2,7 @@
 # =============================================================================
 # TRIP unified pipeline — orchestrator
 # =============================================================================
-# Reads a config text file (see config/example_config.txt) and runs stages 01-10/14/17/18
+# Reads a config text file (see config/example_config.txt) and runs stages 01-13
 # (cutadapt -> bowtie2 -> analyzeTRIPMapping -> filterMappings[+TTAA] ->
 # filterContaminants -> get_genuine_barcodes -> normalizeTRIP[+oneMismatch] ->
 # combineSplicedUnsplicedPairs[if configured] -> make_tracks -> gc_content ->
@@ -10,7 +10,7 @@
 # plotMetageneCorrelations[if configured]) in order. comparePairwiseSharedPositions /
 # annotateTRIP_positions / annotateTRIPGeneBodies / gc_content_report /
 # compareReplicatesAndMultiIntegrations are visualization/QC scripts, not pipeline stages --
-# run them by hand against stage 07/10's output (see README's "Visualization scripts"
+# run them by hand against stage 07/11's output (see README's "Visualization scripts"
 # section), not orchestrated here.
 #
 # Usage
@@ -21,14 +21,14 @@
 #     mapping           01-02 (Map-mode samples only)
 #     genuine_barcodes  01-06
 #     combined_counts   01-07 (everything needed for combined_counts.txt) ★ pipeline's main
-#                        deliverable, plus stage 14 if ### SPLICED_UNSPLICED has rows
-#     annotated         01-10/14/17/18 (adds per-construct annotated_tables.txt (+
+#                        deliverable, plus stage 08 if ### SPLICED_UNSPLICED has rows
+#     annotated         01-13 (adds per-construct annotated_tables.txt (+
 #                        annotated_table_used.txt, the same table restricted to barcodes
 #                        whose normalization reads SUMMED across that construct's ### COMBOS
 #                        normSamples reach >=2 -- a pooled total, NOT ">=2 in at least one
-#                        library"; see scripts/10_table_annotation_genuine_barcodes.R's
+#                        library"; see scripts/11_table_annotation_genuine_barcodes.R's
 #                        header note) -- MANE/gencode/repeats/ChromHMM/
-#                        SPIN/GC --, and (stages 17-18, only if histone_marks.txt/
+#                        SPIN/GC --, and (stages 12-13, only if histone_marks.txt/
 #                        speckle_names.txt are present) a metagene histone-mark/
 #                        speckle-track correlation report; independent of stage 07, runs
 #                        alongside it)
@@ -43,7 +43,7 @@
 # until that whole batch finishes before the next (dependent) stage starts -- so this
 # script itself stays a single long-lived foreground process (submit it via bsub yourself,
 # or nohup/tmux it, if you want to disconnect), but the actual per-item work runs in
-# parallel across the cluster. Stages with no independent-item loop (e.g. stage 10, which
+# parallel across the cluster. Stages with no independent-item loop (e.g. stage 11, which
 # processes every construct in one Rscript call) still get submitted as a single LSF job
 # rather than run directly on the login node. Set USE_LSF=0 in the environment to fall back
 # to plain sequential local execution instead (e.g. for a small test run without LSF
@@ -97,7 +97,7 @@ done < "$PARSED/GLOBAL.tsv"
 : "${R2_PRIMER:?R2_PRIMER missing from ### GLOBAL}"
 TTAA_BED=${TTAA_BED:-}
 DPNII_BED=${DPNII_BED:-}
-# Stages 08-10 (annotated target only) -- each left blank falls back to that stage
+# Stages 09-11 (annotated target only) -- each left blank falls back to that stage
 # script's own hardcoded default (same convention as DPNII_BED above).
 MANE_BED=${MANE_BED:-}
 MANE_INTRONS_BED=${MANE_INTRONS_BED:-}
@@ -410,26 +410,32 @@ echo
 echo "=== combined_counts.txt written for each ### COMBOS row ==="
 
 # =============================================================================
-# Stage 14: combineSplicedUnsplicedPairs -- optional, only if ### SPLICED_UNSPLICED has
+# Stage 08: combineSplicedUnsplicedPairs -- optional, only if ### SPLICED_UNSPLICED has
 # rows. Depends on stage 07's combined_counts.txt (the spliced/unspliced/total triplets
 # it names), so it runs for both "combined_counts" and "annotated" targets, right after
-# stage 07 -- unlike stages 08-13, which only need stage 06 and are annotated-only.
+# stage 07 -- unlike stages 09-13, which only need stage 06 and are annotated-only.
 # =============================================================================
 if [ -s "$PARSED/SPLICED_UNSPLICED.tsv" ]; then
-  echo "=== Stage 14: combineSplicedUnsplicedPairs (spliced/unspliced/total ratio files) ==="
+  echo "=== Stage 08: combineSplicedUnsplicedPairs (spliced/unspliced/total ratio files) ==="
   cp "$PARSED/SPLICED_UNSPLICED.tsv" "$WORK/spliced_unspliced.txt"
-  Rscript "$SCRIPTS/14_combineSplicedUnsplicedPairs_uniform.R" "$WORK/"
+  # Single job (this script loops over every ### SPLICED_UNSPLICED triplet internally), but
+  # still submitted rather than run inline -- it used to be the one stage that called Rscript
+  # directly, which contradicted this script's own "no stage runs on the login node" contract
+  # above and meant it silently skipped the module load every other stage gets.
+  submitOrRun "stage08_combineSplicedUnspliced.log" 8000 1 "$R_MOD" \
+    Rscript "$SCRIPTS/08_combineSplicedUnsplicedPairs_uniform.R" "$WORK/"
+  waitForJobs
   echo
 fi
 
 if [ "$TARGET" != "annotated" ]; then echo "target=combined_counts reached, stopping."; exit 0; fi
 
 # =============================================================================
-# Stages 08-10 (target=annotated): per-construct reference annotation, independent of
+# Stages 09-11 (target=annotated): per-construct reference annotation, independent of
 # stage 07 -- only needs stage 06's genuine-barcode maps, not combined_counts.txt.
 # Reuses $MAPNAMES from stage 06. Builds one name-list file (one "<mapName>.txt" line
 # per construct, matching the real production names.complete_maps.txt format) that
-# stages 08 and 10 each take as a single whole-list argument; stage 09 runs once per
+# stages 09 and 11 each take as a single whole-list argument; stage 10 runs once per
 # construct instead, matching its original per-construct bsub usage.
 # =============================================================================
 NAMELIST="$WORK/.pipeline_names_complete_maps.txt"
@@ -440,49 +446,49 @@ while read -r mapName; do
 done <<< "$MAPNAMES"
 
 echo
-# Stage 08 loops internally (8 sequential intersects x every construct) inside its own
+# Stage 09 loops internally (8 sequential intersects x every construct) inside its own
 # script rather than per-construct in this orchestrator, so it isn't split into one bsub
-# job per item the way the other stages are -- would need 08_make_tracks_genuine_barcodes.sh
+# job per item the way the other stages are -- would need 09_make_tracks_genuine_barcodes.sh
 # itself restructured to take a single construct name to parallelize further. Still routed
 # through submitOrRun so it runs as one LSF job rather than blocking on the login node.
-echo "=== Stage 08: make_tracks (MANE/gencode/repeats intersects) ==="
-submitOrRun "stage08_make_tracks.log" 4000 1 "$BEDTOOLS_MOD" bash "$SCRIPTS/08_make_tracks_genuine_barcodes.sh" "$(basename "$NAMELIST")" \
+echo "=== Stage 09: make_tracks (MANE/gencode/repeats intersects) ==="
+submitOrRun "stage09_make_tracks.log" 4000 1 "$BEDTOOLS_MOD" bash "$SCRIPTS/09_make_tracks_genuine_barcodes.sh" "$(basename "$NAMELIST")" \
   "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$REPEATS_BED"
 waitForJobs
 echo
 
-echo "=== Stage 09: gc_content (one job per construct) ==="
+echo "=== Stage 10: gc_content (one job per construct) ==="
 while read -r mapName; do
   [ -z "$mapName" ] && continue
   echo "-- $mapName --"
-  submitOrRun "stage09_${mapName}.log" 4000 1 "$BEDTOOLS_MOD" bash "$SCRIPTS/09_gc_content_single_genuine_barcodes.sh" "${mapName}.txt" "$CHROM_SIZES" "$GENOME_FASTA"
+  submitOrRun "stage10_${mapName}.log" 4000 1 "$BEDTOOLS_MOD" bash "$SCRIPTS/10_gc_content_single_genuine_barcodes.sh" "${mapName}.txt" "$CHROM_SIZES" "$GENOME_FASTA"
 done <<< "$MAPNAMES"
 waitForJobs
 echo
 
-echo "=== Stage 10: table_annotation (annotated_tables.txt + annotated_table_used.txt) ==="
+echo "=== Stage 11: table_annotation (annotated_tables.txt + annotated_table_used.txt) ==="
 NORMMANIFEST="$WORK/.pipeline_norm_manifest.txt"
 awk -F'\t' '{print $1"\t"$2}' "$PARSED/COMBOS.tsv" > "$NORMMANIFEST"
-submitOrRun "stage10_table_annotation.log" 16000 1 "$R_MOD" Rscript "$SCRIPTS/10_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
+submitOrRun "stage11_table_annotation.log" 16000 1 "$R_MOD" Rscript "$SCRIPTS/11_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
   "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$TRANS2GENE" "$MANE_EXPRESSION" "$CHROMHMM_BED" "$SPIN_BED" "$(basename "$NORMMANIFEST")"
 waitForJobs
 echo
 
 # =============================================================================
 # comparePairwiseSharedPositions / annotateTRIP_positions / annotateTRIPGeneBodies /
-# gc_content_report / compareReplicatesAndMultiIntegrations (formerly stages 11-13/15-16)
+# gc_content_report / compareReplicatesAndMultiIntegrations (previously numbered as pipeline stages, now unnumbered)
 # are visualization/QC scripts, not pipeline stages -- run them by hand against stage
 # 07/10's output (see README's "Visualization scripts" section), same as
 # plotSplicingEfficiencies_uniform.R and computeIntegrationStats.R. Not orchestrated here.
 # =============================================================================
 
 # =============================================================================
-# Stages 17-18: metagene bigWig overlap (histone marks + speckle/TSA-seq tracks) and its
+# Stages 12-13: metagene bigWig overlap (histone marks + speckle/TSA-seq tracks) and its
 # correlation-vs-expression report. Optional: skipped entirely if histone_marks.txt and
 # speckle_names.txt (real, curated per-dataset files -- see e.g.
 # single_combined/histone_marks.txt -- not generated by this pipeline) aren't both present
 # in the working directory. Builds its own <mapName><TAB><expName> $EXPLIST from ### COMBOS'
-# mapName+expSample columns (1st+3rd) -- stage 18's expFile is that same mapType<TAB>exp
+# mapName+expSample columns (1st+3rd) -- stage 13's expFile is that same mapType<TAB>exp
 # format.
 # =============================================================================
 EXPLIST="$WORK/.pipeline_exp_list.txt"
@@ -492,19 +498,19 @@ if [ -f "$WORK/histone_marks.txt" ] && [ -f "$WORK/speckle_names.txt" ]; then
   MAPTYPES="$WORK/.pipeline_map_types.txt"
   printf '%s\n' "$MAPNAMES" > "$MAPTYPES"
 
-  echo "=== Stage 17: meta_bigwig_overlap (bedtools slop + bigWigAverageOverBed) ==="
-  submitOrRun "stage17_meta_bigwig.log" 8000 1 "$BEDTOOLS_MOD $KENTUTILS_MOD" bash "$SCRIPTS/17_meta_bigwig_overlap.sh" "$(basename "$MAPTYPES")" \
+  echo "=== Stage 12: meta_bigwig_overlap (bedtools slop + bigWigAverageOverBed) ==="
+  submitOrRun "stage12_meta_bigwig.log" 8000 1 "$BEDTOOLS_MOD $KENTUTILS_MOD" bash "$SCRIPTS/12_meta_bigwig_overlap.sh" "$(basename "$MAPTYPES")" \
     "$HISTONE_BW_DIR" "$SPECKLE_DIR" "$CHROM_SIZES" "$HG38_TO_HG19_CHAIN"
   waitForJobs
   echo
 
-  echo "=== Stage 18: plotMetageneCorrelations ==="
-  submitOrRun "stage18_metagene.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/18_plotMetageneCorrelations_uniform.R" "$WORK/" pearson "$ALLMAPNAMES" \
+  echo "=== Stage 13: plotMetageneCorrelations ==="
+  submitOrRun "stage13_metagene.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/13_plotMetageneCorrelations_uniform.R" "$WORK/" pearson "$ALLMAPNAMES" \
     "$(basename "$EXPLIST")" metagene_correlations
   waitForJobs
   echo
 else
-  echo "=== Stages 17-18 skipped: histone_marks.txt and/or speckle_names.txt not found in $WORK ==="
+  echo "=== Stages 12-13 skipped: histone_marks.txt and/or speckle_names.txt not found in $WORK ==="
   echo
 fi
 

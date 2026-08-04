@@ -1,9 +1,9 @@
 #!/bin/bash
 # =============================================================================
-# Stage 09 — GC content of each genuine barcode's +/-500bp flanking region
+# Stage 10 — GC content of each genuine barcode's +/-500bp flanking region
 # =============================================================================
 # Usage
-#   bash 09_gc_content_single_genuine_barcodes.sh <name> <chrom_sizes> <genome_fasta>
+#   bash 10_gc_content_single_genuine_barcodes.sh <name> <chrom_sizes> <genome_fasta>
 #
 # Inputs   <name>.retained_barcodes_genuine.bed   (stage 06 output)
 # Outputs  <name>_with_gc.bed   (stage 06 bed + GC%% column; read by stage 10)

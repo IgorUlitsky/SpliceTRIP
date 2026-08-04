@@ -18,7 +18,56 @@ raw fastq (R1/R2)
  -> [05] filterContaminants   -> <name>.retained_barcodes_counts.txt / .bed
  -> [06] get_genuine_barcodes -> <mapName>.txt.retained_barcodes_genuine.bed   (one-to-many: combines replicate samples)
  -> [07] normalizeTRIP (+ optional 1-nt mismatch tolerance) -> <expName>.combined_counts.txt  ★
+ -> [08] combineSplicedUnsplicedPairs -> <outName>.spliced_*.combined_counts.txt  (if ### SPLICED_UNSPLICED)
+ -> [09] make_tracks          -> <mapName>.txt.<track>.txt          ─┐
+ -> [10] gc_content           -> <mapName>.txt_with_gc.bed           ├ target=annotated
+ -> [11] table_annotation     -> <mapName>.txt.annotated_tables.txt ─┘
+ -> [12] meta_bigwig_overlap  -> meta/<mapName>.combined_{histone,speckle}.txt  (if track lists present)
+ -> [13] plotMetageneCorrelations -> <outName>.{meta_corrs,summary_meta_corrs}.pdf
 ```
+
+Stage numbers are contiguous and follow **execution order** — stage N always runs after
+stage N-1. (They were renumbered 2026-08-04; the old scheme had gaps and ran 14 between 07
+and 08. Old -> new: 14->08, 08->09, 09->10, 10->11, 17->12, 18->13.)
+
+### Which stages run in parallel under LSF
+
+`run_pipeline.sh` submits work with `bsub` (queue `gsla-cpu`, pinned to AMD_EPYC hosts) and
+blocks after each stage until that stage's whole batch finishes before starting the next,
+dependent one. **Parallelism is always *within* a stage, never across stages.** A stage
+that loops over independent items (each reading its own inputs, writing its own outputs, no
+shared state) submits one job per item; a stage with no such loop still goes to LSF, just as
+a single job, so nothing heavy runs on the login node.
+
+| stage | script | LSF fan-out | jobs in a typical run |
+|---|---|---|---|
+| 01 cutadapt | `01_run_cutadapt.sh` | **one job per sample** (all three FASTQ sections) | 10s-100s |
+| 02 bowtie2 | `02_run_bowtie2.sh` | **one job per Map sample** | one per `### FASTQ_MAPS` row |
+| 03 analyzeTRIPMapping | `03_analyzeTRIPMapping.R` | **one job per Map sample** | one per `### FASTQ_MAPS` row |
+| 04 filterMappings | `04_filterMappings_TTAA.R` | **one job per Map sample** | one per `### FASTQ_MAPS` row |
+| 05 filterContaminants | `05_filterContaminants_uniform.R` | **one job per contamination batch** | one per distinct `contamination_batch` |
+| 06 get_genuine_barcodes | `06_get_genuine_barcodes.R` | **one job per construct** | one per distinct `mapName` |
+| 07 normalizeTRIP | `07_normalizeTRIP_MM.R` | **one job per `### COMBOS` row** | one per COMBOS row |
+| 08 combineSplicedUnsplicedPairs | `08_combineSplicedUnsplicedPairs_uniform.R` | single job (loops over all triplets internally) | 1 |
+| 09 make_tracks | `09_make_tracks_genuine_barcodes.sh` | single job (8 intersects x every construct, internal loop) | 1 |
+| 10 gc_content | `10_gc_content_single_genuine_barcodes.sh` | **one job per construct** | one per distinct `mapName` |
+| 11 table_annotation | `11_table_annotation_genuine_barcodes.R` | single job (all constructs in one Rscript call) | 1 |
+| 12 meta_bigwig_overlap | `12_meta_bigwig_overlap.sh` | single job (sequential over tracks x constructs) | 1 |
+| 13 plotMetageneCorrelations | `13_plotMetageneCorrelations_uniform.R` | single job | 1 |
+
+The three single-job stages that *could* fan out further (09, 11, 12) would each need their
+own script restructured to accept one construct per invocation; 09 and 12 are the ones where
+that would actually pay off at production scale.
+
+`run_pipeline.sh` itself stays a single long-lived foreground process that submits and waits,
+so submit *it* via `bsub` (or `nohup`/`tmux`) if you want to disconnect — nested `bsub` from a
+compute node works on this cluster and is the intended pattern. `USE_LSF=0` falls back to
+plain sequential local execution for small test runs.
+
+Each job's success is judged from the epilogue LSF writes into its own `-o` log
+(`Successfully completed.` vs `Exited with exit code N`), **not** from `bjobs -o stat`, which
+returns an empty status for a purged job record or an unreachable `mbatchd` and would
+otherwise abort a run whose jobs all succeeded.
 
 Background: a TRIP experiment transfects a pool of plasmids, each carrying a random
 16- or 18-nt barcode next to a piggyBac reporter, so barcodes land at essentially random
@@ -207,7 +256,31 @@ with a single sequencing error that would otherwise be silently dropped for not 
 any genuine barcode exactly. Off by default; exact-match behaviour is unchanged when the
 flag is omitted.
 
-### [08] make_tracks — `scripts/08_make_tracks_genuine_barcodes.sh <name_list.txt> <mane_bed> <mane_introns_bed> <gencode_noncoding_bed> <repeats_bed>`
+### [08] combineSplicedUnsplicedPairs — `scripts/08_combineSplicedUnsplicedPairs_uniform.R <path>`
+
+Optional, only runs (for both `combined_counts` and `annotated` targets) if `### SPLICED_UNSPLICED`
+has rows — unlike stages 09-13, it depends on stage 07's `combined_counts.txt`, so
+`run_pipeline.sh` runs it right after stage 07 rather than gating it to `annotated`. For each
+`### SPLICED_UNSPLICED` row (`outName`, `splicedExpName`, `unsplicedExpName`, `totalExpName`),
+loads the three named `combined_counts.txt` files (already-computed stage 07 outputs for a
+spliced/unspliced/total RNA readout triplet of the same construct — same barcode/position rows
+since they share the same map/norm) and derives three splicing-ratio tables:
+`<outName>.spliced_unspliced.combined_counts.txt` (`exp.log10 = spliced/(spliced+unspliced)`,
+`NA` if that sum is <20), `<outName>.spliced_to_total.combined_counts.txt` (rows with
+`spliced+total>=10` kept, `exp.log10 = spliced/(spliced+total)`, `NA` if <20), and
+`<outName>.spliced_and_unspliced_to_total.combined_counts.txt` (further filtered to
+`spliced+unspliced+total>=10`, `exp.log10 = (spliced+unspliced)/(spliced+unspliced+total)`).
+
+This is igoru's `~/R/trip/IntronTrip/combineSplicedUnsplicedPairs_uniform.R` verbatim, no logic
+changes. `run_pipeline.sh` writes the section's rows out as a real `spliced_unspliced.txt` in
+the working directory (the one positional arg the original script expects) before calling it.
+See `config/introntrip_combined_config.txt` for a populated real example (16 rows, derived
+verbatim from `IntronTRIP_combined/spliced_unspliced.txt`, including its 5 commented-out rows
+preserved as `#` comments) and `config/son_combined_spliced_unspliced.txt` for the real
+`SON_combined` triplets — kept standalone rather than embedded in a full config, since
+`SON_combined` doesn't have a `### FASTQ_MAPS`/`### COMBOS`-style config in this repo yet.
+
+### [09] make_tracks — `scripts/09_make_tracks_genuine_barcodes.sh <name_list.txt> <mane_bed> <mane_introns_bed> <gencode_noncoding_bed> <repeats_bed>`
 
 Reference annotation, independent of stage 07 (only needs stage 06's genuine-barcode
 maps). One `bedtools intersect` per (construct × reference track × strand orientation),
@@ -226,7 +299,7 @@ replaced with `while read < file` (same behaviour, one fewer process). Verified
 byte-for-byte identical output against the original script on a real construct (5ss, 3292
 genuine barcodes).
 
-### [09] gc_content — `scripts/09_gc_content_single_genuine_barcodes.sh <name> <chrom_sizes> <genome_fasta>`
+### [10] gc_content — `scripts/10_gc_content_single_genuine_barcodes.sh <name> <chrom_sizes> <genome_fasta>`
 
 Run once **per construct** (unlike 08/10, which take the whole name-list at once) —
 matches the original per-construct `bsub` usage. Slops each genuine barcode's position
@@ -240,7 +313,7 @@ reference paths turned into required arguments (config-driven `CHROM_SIZES`,
 loaded once up front by the caller — see "Running" below — not re-loaded per stage script).
 Verified byte-for-byte identical output against the original script.
 
-### [10] table_annotation — `scripts/10_table_annotation_genuine_barcodes.R <path> <name_list.txt> [mane_bed] [mane_introns_bed] [gencode_noncoding_bed] [trans2gene] [mane_expression] [chromhmm_bed] [spin_bed] [norm_manifest]`
+### [11] table_annotation — `scripts/11_table_annotation_genuine_barcodes.R <path> <name_list.txt> [mane_bed] [mane_introns_bed] [gencode_noncoding_bed] [trans2gene] [mane_expression] [chromhmm_bed] [spin_bed] [norm_manifest]`
 
 The per-construct annotation table later analysis scripts (e.g.
 `annotateTRIP_positions_genuine_barcodes.R`, `compareReplicatesAndMultiIntegrations_uniform.R`)
@@ -273,31 +346,7 @@ detectable in the normalization library" rather than "did stage 06 keep this bar
 all." `comparePairwiseSharedPositions_uniform.R` and `computeIntegrationStats.R` (see
 "Visualization scripts" below) read this filtered file instead of the unfiltered one.
 
-### [14] combineSplicedUnsplicedPairs — `scripts/14_combineSplicedUnsplicedPairs_uniform.R <path>`
-
-Optional, only runs (for both `combined_counts` and `annotated` targets) if `### SPLICED_UNSPLICED`
-has rows — unlike stages 08-13, it depends on stage 07's `combined_counts.txt`, so
-`run_pipeline.sh` runs it right after stage 07 rather than gating it to `annotated`. For each
-`### SPLICED_UNSPLICED` row (`outName`, `splicedExpName`, `unsplicedExpName`, `totalExpName`),
-loads the three named `combined_counts.txt` files (already-computed stage 07 outputs for a
-spliced/unspliced/total RNA readout triplet of the same construct — same barcode/position rows
-since they share the same map/norm) and derives three splicing-ratio tables:
-`<outName>.spliced_unspliced.combined_counts.txt` (`exp.log10 = spliced/(spliced+unspliced)`,
-`NA` if that sum is <20), `<outName>.spliced_to_total.combined_counts.txt` (rows with
-`spliced+total>=10` kept, `exp.log10 = spliced/(spliced+total)`, `NA` if <20), and
-`<outName>.spliced_and_unspliced_to_total.combined_counts.txt` (further filtered to
-`spliced+unspliced+total>=10`, `exp.log10 = (spliced+unspliced)/(spliced+unspliced+total)`).
-
-This is igoru's `~/R/trip/IntronTrip/combineSplicedUnsplicedPairs_uniform.R` verbatim, no logic
-changes. `run_pipeline.sh` writes the section's rows out as a real `spliced_unspliced.txt` in
-the working directory (the one positional arg the original script expects) before calling it.
-See `config/introntrip_combined_config.txt` for a populated real example (16 rows, derived
-verbatim from `IntronTRIP_combined/spliced_unspliced.txt`, including its 5 commented-out rows
-preserved as `#` comments) and `config/son_combined_spliced_unspliced.txt` for the real
-`SON_combined` triplets — kept standalone rather than embedded in a full config, since
-`SON_combined` doesn't have a `### FASTQ_MAPS`/`### COMBOS`-style config in this repo yet.
-
-### [17] meta_bigwig_overlap — `scripts/17_meta_bigwig_overlap.sh <mapTypesFile> <histoneBwDir> <speckleDir> <chromSizes> <chainHg38ToHg19>`
+### [12] meta_bigwig_overlap — `scripts/12_meta_bigwig_overlap.sh <mapTypesFile> <histoneBwDir> <speckleDir> <chromSizes> <chainHg38ToHg19>`
 
 Optional (only runs if `histone_marks.txt` and `speckle_names.txt` — real, curated per-dataset
 track lists, e.g. `single_combined/histone_marks.txt` — are both present in the working
@@ -317,22 +366,22 @@ real, already-computed `.tab.gz` files. Heavy at production scale (many tracks �
 constructs) — wrap in `bsub` yourself for a real run rather than running on a login node, same
 as stages 01-02.
 
-### [18] plotMetageneCorrelations — `scripts/18_plotMetageneCorrelations_uniform.R <path> <corType> <mapTypesList> <expFile> <outName>`
+### [13] plotMetageneCorrelations — `scripts/13_plotMetageneCorrelations_uniform.R <path> <corType> <mapTypesList> <expFile> <outName>`
 
 Correlates each barcode's summed expression (`log10(1+exp)`, no norm — a separate, simpler
 readout than `### COMBOS`/stage 07, driven by its own `<mapType><TAB><exp>` `expFile`, reused
 here from `run_pipeline.sh`'s own auto-generated `### COMBOS`-derived one) against every histone-mark and speckle/TSA-seq
-track's stage 17 metagene signal. Per-construct bar charts (one per track type) plus a combined
+track's stage 12 metagene signal. Per-construct bar charts (one per track type) plus a combined
 heatmap across every construct and every track, `corType` correlation (`pearson`/`spearman`),
 p<0.05 cells annotated with their p-value, color scale symmetric around 0 and shared between
 the histone and speckle heatmaps.
 
 This is igoru's `~/R/trip/plotMetageneCorrelations_singleCombined.R` verbatim, no logic changes.
 
-### Visualization/QC scripts (formerly stages 11-13/15-16)
+### Visualization/QC scripts (unnumbered)
 
 `comparePairwiseSharedPositions`, `annotateTRIP_positions`, `annotateTRIPGeneBodies`,
-`gc_content_report`, and `compareReplicatesAndMultiIntegrations` all read stage 07/10's
+`gc_content_report`, and `compareReplicatesAndMultiIntegrations` all read stage 07/11's
 output but aren't run by `run_pipeline.sh` -- they're QC/plotting scripts you run by hand
 against however much of the pipeline you've already produced, not steps every run needs.
 See the "Visualization scripts" section below.
@@ -340,7 +389,7 @@ See the "Visualization scripts" section below.
 ## Visualization scripts
 
 Not pipeline stages — standalone plotting/reporting scripts run by hand against
-already-produced stage output (typically stage 07/10), not wired into `run_pipeline.sh`.
+already-produced stage output (typically stage 07/11), not wired into `run_pipeline.sh`.
 This includes five scripts that predate the numbered-stage/visualization-script split
 (`comparePairwiseSharedPositions_uniform.R`, `annotateTRIP_positions_genuine_barcodes.R`,
 `annotateTRIPGeneBodies_genuine_barcodes.R`, `gc_content_genuine_barcodes.R`,
@@ -356,7 +405,7 @@ of per-position splicing efficiency (`exp.log10`, restricted to `[0,1]`) across 
 order** (no automatic reordering, unlike the original script's grep-based construct sort —
 put rows in the file in the order you want them plotted; two rows sharing a `niceName` are
 pooled into one violin). `expName.combined_counts.txt` must already carry its own `exp.log10`
-(a `[0,1]`-bounded splicing ratio — stage 14's `*.spliced_unspliced.combined_counts.txt` is
+(a `[0,1]`-bounded splicing ratio — stage 08's `*.spliced_unspliced.combined_counts.txt` is
 the usual source); `nameMap.txt` is a construct's stage 10 `annotated_tables.txt`, read once
 and reused across rows that share it. Colors are dynamic by violin position (1-2 gray, 3-6
 alternating light/dark blue, 7+ a red gradient) rather than hardcoded to a fixed sample count.
@@ -398,7 +447,7 @@ one `<outFile>.shared_positions.<mapA>_vs_<mapB>.txt` per unordered construct pa
 every shared position, its shared barcode(s) if any, and both constructs' per-position
 average values.
 
-No hardcoded paths in this script (unlike 08-10) — reads only stage 07/10's own output,
+No hardcoded paths in this script (unlike 09-11) — reads only stage 07/11's own output,
 specifically `<mapName>.txt.annotated_table_used.txt` (stage 10's normalization-filtered
 table, not the unfiltered `annotated_tables.txt`) as of 2026-08-03. Build your own
 `<mapName><TAB><expName>` `expListFile` from `### COMBOS`' `mapName`+`expSample` columns,
@@ -458,7 +507,7 @@ expression-vs-GC% scatter colored by GC category (Low/Average/High, from
 pairwise t-tests between the three categories.
 
 This is igoru's `gc_content_genuine_barcodes.R` verbatim, aside from an added doc header and one
-real bug fix (applied to the original script directly too, matching stage 07/10's and
+real bug fix (applied to the original script directly too, matching stage 07/11's and
 `annotateTRIP_positions_genuine_barcodes.R`'s/`annotateTRIPGeneBodies_genuine_barcodes.R`'s
 equivalent merges): the unconditional `exp.log10 = log10(1+exp)` was silently overwriting the
 pre-existing, differently-scaled `exp.log10` that `*.spliced_unspliced.combined_counts.txt` files
@@ -476,16 +525,25 @@ other pipeline stages' own output.
 Per-construct QC, whole-list call like `comparePairwiseSharedPositions_uniform.R` (reuses
 the same `<mapName><TAB><expName>` `expListFile` format). Asks: how well do independent
 barcodes that land in the same gene, the same intron, or the exact same genomic position
-agree in expression, compared to random barcode pairs? Barcodes-per-gene/intron/position
+(strand-specific — same coordinate on opposite strands is not a shared position) agree in
+expression, compared to random barcode pairs? Barcodes-per-gene/intron/position
 histograms, then expression-distance boxplots (random pairs vs. same gene-different-intron
 vs. same intron vs. same position, each with Wilcoxon p-values) — near-duplicate barcodes
 at one position are first collapsed by Hamming distance (<3), since those are more likely
-PCR/sequencing error variants than independent integrations. Also an UpSet plot of which
+PCR/sequencing error variants than independent integrations. Also exp.log10 *level*
+distributions across the same four groupings, %-variance-in-exp.log10-explained by each
+grouping (one-way ANOVA eta-squared), and an UpSet plot (top 40 intersections) of which
 barcodes are expressed (`exp.log10>0`) in which library.
 
 This is igoru's `~/R/trip/compareReplicatesAndMultiIntegrations_uniform.R` verbatim, no logic
-changes. Same hand-curated-`expListFile` caveat as `comparePairwiseSharedPositions_uniform.R` —
-see `examples/exp_lists/IntronTRIP_combined.expression.exp_list.txt` for a real one (one `Total`
+changes beyond what's in that source file. Refreshed 2026-08-04 for three fixes made
+upstream: the strand-specific position key above, and two independent memory-blowout fixes
+(a "random pairs" reference distribution that was sampling 10,000 barcodes and then taking
+every pairwise distance among them — C(10000,2) ≈ 50 million pairs instead of the intended
+10,000 — and an UpSet `min_size=0` that rendered every *observed* set-combination rather
+than being a real cap, capped instead via `n_intersections=40`). Same hand-curated-
+`expListFile` caveat as `comparePairwiseSharedPositions_uniform.R` — see
+`examples/exp_lists/IntronTRIP_combined.expression.exp_list.txt` for a real one (one `Total`
 readout per rep per construct, not every `### COMBOS` expName).
 
 ### computeIntegrationStats — `scripts/computeIntegrationStats.R <xxx>` (reads `<xxx>.annotated_table_used.txt`)
@@ -514,14 +572,65 @@ Ported from `~/R/trip/computeIntegrationStats.R`, changed to read
 instead of `<xxx>.annotated_tables.txt`, so the integration landscape reflects the same
 barcode set the rest of a real analysis would use, not every barcode stage 06 ever kept.
 
+### plotMetageneByCategory — `scripts/plotMetageneByCategory_uniform.R [mapName1,mapName2,...] [expListFile] [bwName]`
+
+Metagene of one K562 ENCODE bigWig (`<bwName>`, resolved under the script's `bwPath`) over
+±500 bp around every genuine barcode, strand-flipped to a consistent 5'->3' orientation,
+5% trimmed mean per position, smoothed with a 10-nt moving average. Barcodes are first
+bucketed into mutually exclusive annotation/expression categories (first-match-wins, with
+`Other` catching the remainder) by merging pooled expression onto each construct's
+`<mapName>.txt.annotated_table_used.txt`; the four categories that require `exp.log10>=1`
+are further split into three expression-level lines within their own panel. Output is one
+PDF grid, one row per map and one column per panel, y axis shared within a row. All three
+args are optional and fall back to the script's own defaults (the four `single_combined`
+maps, `exp_list.txt`, `ATAC`).
+
+`scripts/plotMetageneByCategory_stranded_uniform.R [mapName1,...] [expListFile] [bwPrefix]`
+is the strand-specific sibling for bigWig **pairs** (`<bwPrefix>.plus.bw`/`.minus.bw`, e.g.
+PRO-seq): each barcode pulls signal from its own strand's track, and the minus track's
+conventionally-negative values are negated back to plain magnitudes before anything is
+averaged. It uses a plain (untrimmed) mean rather than a 5% trimmed mean — verified on real
+data that only ~53% of barcodes have any nonzero signal anywhere in their window, so for a
+sparse point-signal assay both the median and a 5% trimmed mean come out exactly 0 at every
+position.
+
+### make_mane_introns — `scripts/make_mane_introns.R [mane_bed] [out_bed]`
+
+Reference-building utility, not part of any run: regenerates the `MANE_INTRONS_BED` file
+that stage 11 consumes, directly from `MANE_BED`'s own BED12 exon-block structure, so the
+two always describe the same transcript set with consistent 0-based coordinates. Replaces
+the older shared `..._MANE_introns_new_format.bed`, which had a baked-in 1-based/0-based
+mix-up in its start column and covered a stale transcript set (136 transcripts absent from
+the current MANE bed, 79 multi-exon MANE transcripts missing entirely). Output format is
+identical to the file it replaces: `chrom, start, end, <transcript>.<intronNum>,
+score(=intronNum), strand`, intron numbering in genomic (increasing-coordinate) order
+regardless of strand. Both args optional; defaults point at igoru's copies.
+
+## Driver scripts
+
+`run_pipeline.sh` runs the whole pipeline from a config. The rest are one-off drivers kept
+for provenance — each re-enters the pipeline partway through, for a specific dataset, and
+documents in its own header why that rerun was needed. They reuse `run_pipeline.sh`'s config
+parsing and per-stage command blocks verbatim rather than reimplementing them.
+
+| script | what it does |
+|---|---|
+| `run_pipeline.sh <config.txt> [target] [threads]` | the orchestrator — stages 01-13, LSF-parallel, `target` = `cutadapt`\|`mapping`\|`genuine_barcodes`\|`combined_counts`\|`annotated` |
+| `resume_from_stage04_single_combined.sh <config.txt> <work_dir>` | `single_combined` from stage 04 on. Stage 04 runs per sample **in that sample's own run directory** (that's where stage 03's outputs live for the real data); stages 05+ run from `single_combined/` |
+| `resume_from_stage07_single_combined.sh <config.txt> <work_dir>` | `single_combined` from stage 07 on — for when only `### COMBOS`/`combined_counts.txt` need redoing |
+| `resume_stage07_parallel_single_combined.sh <config.txt> <work_dir>` | stage 07 only, one LSF job per `### COMBOS` row |
+| `resume_from_stage09_single_combined.sh <config.txt> <work_dir>` | stages 09-11 only (the annotation block), for when stage 06 was regenerated but the annotation outputs never were |
+| `resume_from_stage04_introntrip_combined.sh <config.txt> <work_dir> [start_stage]` | `IntronTRIP_combined` from stage 04 (or 05) on. Also repairs the per-sample symlinks `IntronTRIP_combined/` was missing, which stage 05 reads and writes through; `start_stage=05` re-verifies every stage-04 log before honouring the skip |
+| `backup_before_resume_introntrip_combined.sh <config.txt> <work_dir> [backup_root]` | copies (dereferencing, `cp -L`) exactly the files a stages-04-11 rerun would overwrite, nothing else — ~5 GB rather than a 13 GB full copy of the working directory |
+
 ## Data flow
 
 How each stage's output feeds the next, as a visual recap of the stage-by-stage descriptions
-above. `combined_counts` (default target) is stages 01-07 (+ 14 if `### SPLICED_UNSPLICED` has
-rows); `annotated` adds 08-10, plus 17-18 if `histone_marks.txt`/`speckle_names.txt` are
+above. `combined_counts` (default target) is stages 01-07 (+ 08 if `### SPLICED_UNSPLICED` has
+rows); `annotated` adds 09-11, plus 12-13 if `histone_marks.txt`/`speckle_names.txt` are
 present. The DpnII distance analysis and the visualization scripts (bottom subgraph — run by
-hand against stage 07/10 output, not orchestrated by `run_pipeline.sh`) are side-branches off
-stages 06/07/10, independent of everything else. Two of the six visualization scripts
+hand against stage 07/11 output, not orchestrated by `run_pipeline.sh`) are side-branches off
+stages 06/07/11, independent of everything else. Two of the six visualization scripts
 (`comparePairwiseSharedPositions_uniform.R`, `computeIntegrationStats.R`) read stage 10's
 normalization-filtered `annotated_table_used.txt`; the other four still read the unfiltered
 `annotated_tables.txt`.
@@ -544,44 +653,50 @@ flowchart TD
     S01C -->|"name.counts.txt.gz"| S07
     S07 -->|"expName.combined_counts.txt ★"| DONE(["★ pipeline main deliverable"])
 
-    S07 --> S14["14 combineSplicedUnsplicedPairs<br/>(optional, needs ### SPLICED_UNSPLICED)"]
-    S14 -->|"outName.{spliced_unspliced,<br/>spliced_to_total,...}.combined_counts.txt"| VIZ
+    S07 --> S08["08 combineSplicedUnsplicedPairs<br/>(optional, needs ### SPLICED_UNSPLICED)"]
+    S08 -->|"outName.{spliced_unspliced,<br/>spliced_to_total,...}.combined_counts.txt"| VIZ
 
     subgraph ANNOT["annotated target only"]
-        S06 --> S08["08 make_tracks<br/>(MANE/introns/gencode/repeats)"]
-        S06 --> S09["09 gc_content<br/>(per-barcode ±500bp GC%)"]
-        S08 -->|"name.MANE_*.txt, .repeats.txt, ..."| S10
-        S09 -->|"name_with_gc.bed"| S10["10 table_annotation"]
-        S06 --> S10
-        S10 -->|"mapName.txt.annotated_tables.txt /<br/>.annotated_table_used.txt"| VIZ
+        S06 --> S09["09 make_tracks<br/>(MANE/introns/gencode/repeats)"]
+        S06 --> S10["10 gc_content<br/>(per-barcode ±500bp GC%)"]
+        S09 -->|"name.MANE_*.txt, .repeats.txt, ..."| S11
+        S10 -->|"name_with_gc.bed"| S11["11 table_annotation"]
+        S06 --> S11
+        S11 -->|"mapName.txt.annotated_tables.txt /<br/>.annotated_table_used.txt"| VIZ
     end
-
-    subgraph VIZ["visualization scripts (run by hand, NOT orchestrated by run_pipeline.sh)"]
-        S11["comparePairwiseSharedPositions<br/>(across all constructs)"]
-        S12["annotateTRIP_positions<br/>(per construct)"]
-        S13["annotateTRIPGeneBodies<br/>(per construct)"]
-        S15["gc_content_report<br/>(per construct)"]
-        S16["compareReplicatesAndMultiIntegrations<br/>(per construct)"]
-        SCIS["computeIntegrationStats<br/>(per construct)"]
-    end
-    S07 --> S11
-    S07 --> S12
-    S07 --> S13
-    S07 --> S15
-    S07 --> S16
-    S10 --> SCIS
 
     subgraph META["metagene bigWig overlap (optional, needs histone_marks.txt/speckle_names.txt)"]
-        S17["17 meta_bigwig_overlap<br/>(bedtools slop + bigWigAverageOverBed + liftOver)"]
-        S18["18 plotMetageneCorrelations"]
-        S17 -->|"meta/mapName.combined_{histone,speckle}.txt"| S18
+        S12["12 meta_bigwig_overlap<br/>(bedtools slop + bigWigAverageOverBed + liftOver)"]
+        S13["13 plotMetageneCorrelations"]
+        S12 -->|"meta/mapName.combined_{histone,speckle}.txt"| S13
     end
-    S06 --> S17
-    S07 --> S18
+    S06 --> S12
+    S07 --> S13
+
+    subgraph VIZ["visualization scripts (unnumbered - run by hand, NOT orchestrated by run_pipeline.sh)"]
+        VCMP["comparePairwiseSharedPositions<br/>(across all constructs)"]
+        VPOS["annotateTRIP_positions<br/>(per construct)"]
+        VGB["annotateTRIPGeneBodies<br/>(per construct)"]
+        VGC["gc_content_report<br/>(per construct)"]
+        VREP["compareReplicatesAndMultiIntegrations<br/>(per construct)"]
+        VCIS["computeIntegrationStats<br/>(per construct)"]
+        VSPL["plotSplicingEfficiencies<br/>(per spliced/unspliced triplet)"]
+        VMBC["plotMetageneByCategory<br/>(+ _stranded variant)"]
+    end
+    S07 --> VCMP
+    S07 --> VPOS
+    S07 --> VGB
+    S07 --> VGC
+    S07 --> VREP
+    S08 --> VSPL
+    S11 --> VCIS
+    S11 --> VCMP
+    S12 --> VMBC
 
     S06 -->|"mapName.txt.retained_barcodes_genuine.dnpII_dists.txt"| DPNII["plot_dpnII_distances.R<br/>(+ hg38_ttaa.bed, hg38_dpnii.bed, hg38.gaps.bed.gz)"]
     DPNII -->|"dpnII_distances.pdf"| DPNIIOUT(["real vs random-TTAA<br/>DpnII-distance comparison"])
 ```
+
 
 ## Running
 
@@ -594,12 +709,12 @@ bash ../run_pipeline.sh ../config/example_config.txt combined_counts
 ```
 
 `target` (2nd arg) controls how far to run: `cutadapt` | `mapping` | `genuine_barcodes` |
-`combined_counts` (default — stages 01-07, the pipeline's main deliverable, plus stage 14 if
-`### SPLICED_UNSPLICED` has rows) | `annotated` (stages 01-10/14/17/18, adds per-construct
+`combined_counts` (default — stages 01-07, the pipeline's main deliverable, plus stage 08 if
+`### SPLICED_UNSPLICED` has rows) | `annotated` (stages 01-13, adds per-construct
 `annotated_tables.txt`/`annotated_table_used.txt`, plus — only if `histone_marks.txt`/
 `speckle_names.txt` are present — a metagene histone-mark/speckle-track correlation report).
 The pairwise-shared-position/per-construct-QC/gene-body/GC-content/replicate-agreement
-reports (formerly stages 11-13/15-16) are visualization scripts, not part of any target —
+reports (unnumbered) are visualization scripts, not part of any target —
 see "Visualization scripts" above. Everything is written into the current directory. Every
 stage that loops over independent items (samples/batches/constructs/`### COMBOS` rows)
 submits one `bsub` job per item and blocks until that batch finishes before the next stage
@@ -608,11 +723,11 @@ starts (`USE_LSF=0` falls back to plain sequential local execution).
 See `config/example_config.txt` for the config format:
 
 - `### GLOBAL` — `key<TAB>value` pairs. Core: `BARCODE_LEN`, `BOWTIE2_INDEX`, `CONT_FACTOR`,
-  `TTAA_BED`, `R1_PRIMER`, `R1_SUFFIX`, `R2_PRIMER`. Stages 08-10 (`annotated` target only,
+  `TTAA_BED`, `R1_PRIMER`, `R1_SUFFIX`, `R2_PRIMER`. Stages 09-11 (`annotated` target only,
   all shared cluster reference resources — safe to leave unset if you only need
   `combined_counts`): `MANE_BED`, `MANE_INTRONS_BED`, `GENCODE_NONCODING_BED`,
   `REPEATS_BED`, `CHROM_SIZES`, `GENOME_FASTA`, `TRANS2GENE`, `MANE_EXPRESSION`,
-  `CHROMHMM_BED`, `SPIN_BED`. Stages 17-18 (`annotated` target, only if
+  `CHROMHMM_BED`, `SPIN_BED`. Stages 12-13 (`annotated` target, only if
   `histone_marks.txt`/`speckle_names.txt` are present): `SPECKLE_DIR`, `HISTONE_BW_DIR`,
   `HG38_TO_HG19_CHAIN`. Three of the smaller ones (`MANE_BED`, `CHROMHMM_BED`, `SPIN_BED`)
   are bundled directly in `reference/` for anyone without access to the Weizmann cluster's
@@ -634,7 +749,7 @@ See `config/example_config.txt` for the config format:
   a separate section purely so it's clear at a glance which samples are Norm vs Exp.
 - `### COMBOS` — `mapName, normSample, expSample, effLength, reverseComplement,
   oneMismatch(optional)`, referencing names from the three sections above.
-- `### SPLICED_UNSPLICED` — optional (stage 14 only): `outName, splicedExpName,
+- `### SPLICED_UNSPLICED` — optional (stage 08 only): `outName, splicedExpName,
   unsplicedExpName, totalExpName`, all three referencing `### COMBOS`/`### FASTQ_SAMPLES`
   expNames. Omit the section entirely (or leave it empty) if you have no spliced/unspliced/
   total RNA readout triplets to combine.

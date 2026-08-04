@@ -3,10 +3,10 @@
 # Needed after fixing 4 mislabeled rows in combos.txt (mapName=5ss_noP instead of CPA_noP
 # for the 3intron_CPA_noP_* rows) -- stages 01-06 only depend on FASTQ_MAPS/barcode
 # mapping, not COMBOS, so their (already-correct, freshly regenerated) outputs don't need
-# redoing. Stages 08-10 also don't depend on COMBOS/combined_counts.txt (see
+# redoing. Stages 09-11 also don't depend on COMBOS/combined_counts.txt (see
 # run_pipeline.sh's own comment: "independent of stage 07, runs alongside it"), so this
-# only needs to touch stage 07 (+ stage 14 if configured) -- included anyway for
-# completeness/parity with a real target=annotated run, at negligible extra cost since 08-10
+# only needs to touch stage 07 (+ stage 08 if configured) -- included anyway for
+# completeness/parity with a real target=annotated run, at negligible extra cost since 09-11
 # don't depend on anything this changed.
 set -euo pipefail
 
@@ -62,9 +62,9 @@ done < "$PARSED/COMBOS.tsv"
 echo
 
 if [ -s "$PARSED/SPLICED_UNSPLICED.tsv" ]; then
-  echo "=== Stage 14: combineSplicedUnsplicedPairs ==="
+  echo "=== Stage 08: combineSplicedUnsplicedPairs ==="
   cp "$PARSED/SPLICED_UNSPLICED.tsv" "$WORK/spliced_unspliced.txt"
-  Rscript "$SCRIPTS/14_combineSplicedUnsplicedPairs_uniform.R" "$WORK/"
+  Rscript "$SCRIPTS/08_combineSplicedUnsplicedPairs_uniform.R" "$WORK/"
   echo
 fi
 

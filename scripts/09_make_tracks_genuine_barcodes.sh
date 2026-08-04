@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Stage 08 — intersect each construct's genuine-barcode positions against reference
+# Stage 09 — intersect each construct's genuine-barcode positions against reference
 # annotation tracks (MANE genes, MANE introns, gencode noncoding, repeats)
 # =============================================================================
 # Produces the per-construct "<name>.<track>.txt" files that stage 10
@@ -8,7 +8,7 @@
 # strand-orientation) combination, for every construct name listed in the name-list file.
 #
 # Usage
-#   bash 08_make_tracks_genuine_barcodes.sh <name_list.txt> <mane_bed> <mane_introns_bed> <gencode_noncoding_bed> <repeats_bed>
+#   bash 09_make_tracks_genuine_barcodes.sh <name_list.txt> <mane_bed> <mane_introns_bed> <gencode_noncoding_bed> <repeats_bed>
 #
 # name_list.txt: one construct name per line, e.g. "5ss.txt" (matches stage 06's <mapName>.txt
 # naming -- each line's "<name>.retained_barcodes_genuine.bed" must already exist, stage 06

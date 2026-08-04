@@ -61,7 +61,7 @@ esac
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS="$HERE/scripts"
 
-echo "=== IntronTRIP_combined: resume from stage 04 (04-10 + 14) ==="
+echo "=== IntronTRIP_combined: resume from stage 04 (04-11) ==="
 echo "config:   $CONFIG"
 echo "work dir: $WORK"
 echo
@@ -332,21 +332,21 @@ waitForJobs
 echo
 
 # =============================================================================
-# Stage 14: combineSplicedUnsplicedPairs -- single job over all ### SPLICED_UNSPLICED rows,
+# Stage 08: combineSplicedUnsplicedPairs -- single job over all ### SPLICED_UNSPLICED rows,
 # depends on stage 07's combined_counts.txt. Same position in the order as run_pipeline.sh
-# (right after 07, before 08-10).
+# (right after 07, before 09-11).
 # =============================================================================
 if [ -s "$PARSED/SPLICED_UNSPLICED.tsv" ]; then
-  echo "=== Stage 14: combineSplicedUnsplicedPairs ($(wc -l < "$PARSED/SPLICED_UNSPLICED.tsv") triplet(s)) ==="
+  echo "=== Stage 08: combineSplicedUnsplicedPairs ($(wc -l < "$PARSED/SPLICED_UNSPLICED.tsv") triplet(s)) ==="
   cp "$PARSED/SPLICED_UNSPLICED.tsv" "$WORK/spliced_unspliced.txt"
-  submitOrRun "$WORK/stage14_combineSplicedUnspliced.log" 8000 1 "$R_MOD" "$WORK" \
-    Rscript "$SCRIPTS/14_combineSplicedUnsplicedPairs_uniform.R" "$WORK/"
+  submitOrRun "$WORK/stage08_combineSplicedUnspliced.log" 8000 1 "$R_MOD" "$WORK" \
+    Rscript "$SCRIPTS/08_combineSplicedUnsplicedPairs_uniform.R" "$WORK/"
   waitForJobs
   echo
 fi
 
 # =============================================================================
-# Stages 08-10: per-construct reference annotation (only needs stage 06's output)
+# Stages 09-11: per-construct reference annotation (only needs stage 06's output)
 # =============================================================================
 NAMELIST="$WORK/.pipeline_names_complete_maps.txt"
 > "$NAMELIST"
@@ -355,31 +355,31 @@ while read -r mapName; do
   echo "${mapName}.txt" >> "$NAMELIST"
 done <<< "$MAPNAMES"
 
-echo "=== Stage 08: make_tracks (MANE/gencode/repeats intersects) ==="
-submitOrRun "$WORK/stage08_make_tracks.log" 8000 1 "$BEDTOOLS_MOD" "$WORK" \
-  bash "$SCRIPTS/08_make_tracks_genuine_barcodes.sh" "$(basename "$NAMELIST")" \
+echo "=== Stage 09: make_tracks (MANE/gencode/repeats intersects) ==="
+submitOrRun "$WORK/stage09_make_tracks.log" 8000 1 "$BEDTOOLS_MOD" "$WORK" \
+  bash "$SCRIPTS/09_make_tracks_genuine_barcodes.sh" "$(basename "$NAMELIST")" \
   "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$REPEATS_BED"
 waitForJobs
 echo
 
-echo "=== Stage 09: gc_content (one job per construct) ==="
+echo "=== Stage 10: gc_content (one job per construct) ==="
 while read -r mapName; do
   [ -z "$mapName" ] && continue
   echo "-- $mapName --"
-  submitOrRun "$WORK/stage09_${mapName}.log" 8000 1 "$BEDTOOLS_MOD" "$WORK" \
-    bash "$SCRIPTS/09_gc_content_single_genuine_barcodes.sh" "${mapName}.txt" "$CHROM_SIZES" "$GENOME_FASTA"
+  submitOrRun "$WORK/stage10_${mapName}.log" 8000 1 "$BEDTOOLS_MOD" "$WORK" \
+    bash "$SCRIPTS/10_gc_content_single_genuine_barcodes.sh" "${mapName}.txt" "$CHROM_SIZES" "$GENOME_FASTA"
 done <<< "$MAPNAMES"
 waitForJobs
 echo
 
-echo "=== Stage 10: table_annotation (annotated_tables.txt + annotated_table_used.txt) ==="
+echo "=== Stage 11: table_annotation (annotated_tables.txt + annotated_table_used.txt) ==="
 NORMMANIFEST="$WORK/.pipeline_norm_manifest.txt"
 awk -F'\t' '{print $1"\t"$2}' "$PARSED/COMBOS.tsv" > "$NORMMANIFEST"
-submitOrRun "$WORK/stage10_table_annotation.log" 32000 1 "$R_MOD" "$WORK" \
-  Rscript "$SCRIPTS/10_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
+submitOrRun "$WORK/stage11_table_annotation.log" 32000 1 "$R_MOD" "$WORK" \
+  Rscript "$SCRIPTS/11_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
   "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$TRANS2GENE" "$MANE_EXPRESSION" \
   "$CHROMHMM_BED" "$SPIN_BED" "$(basename "$NORMMANIFEST")"
 waitForJobs
 echo
 
-echo "=== done: stages 04-10 + 14 rerun for all $(echo "$MAPNAMES" | wc -l) constructs ==="
+echo "=== done: stages 04-11 rerun for all $(echo "$MAPNAMES" | wc -l) constructs ==="

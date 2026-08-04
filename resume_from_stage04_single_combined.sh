@@ -72,7 +72,7 @@ echo
 # the same way -- one job per contamination batch (05), per construct (06, 09) and per COMBOS
 # row (07) -- with a waitForJobs barrier between stages. The barriers are the real
 # dependencies: 05 builds its cross-group contamination reference from EVERY sample's
-# .filtered_barcodes.bed, 06 consumes every sample's .retained_barcodes.bed, and 08-10 need
+# .filtered_barcodes.bed, 06 consumes every sample's .retained_barcodes.bed, and 09-11 need
 # all of 07's combined_counts.txt. Within a stage the items are independent.
 #
 # waitForJobs polls each job by its own ID and requires DONE. Deliberately not
@@ -201,16 +201,16 @@ waitForJobs
 echo
 
 if [ -s "$PARSED/SPLICED_UNSPLICED.tsv" ]; then
-  echo "=== Stage 14: combineSplicedUnsplicedPairs ==="
+  echo "=== Stage 08: combineSplicedUnsplicedPairs ==="
   cp "$PARSED/SPLICED_UNSPLICED.tsv" "$WORK/spliced_unspliced.txt"
-  submitOrRun "stage14_combineSplicedUnspliced.log" 8000 1 "$R_MOD" \
-    "cd '$WORK' && Rscript '$SCRIPTS/14_combineSplicedUnsplicedPairs_uniform.R' '$WORK/'"
+  submitOrRun "stage08_combineSplicedUnspliced.log" 8000 1 "$R_MOD" \
+    "cd '$WORK' && Rscript '$SCRIPTS/08_combineSplicedUnsplicedPairs_uniform.R' '$WORK/'"
   waitForJobs
   echo
 fi
 
 # =============================================================================
-# Stages 08-10: per-construct reference annotation
+# Stages 09-11: per-construct reference annotation
 # =============================================================================
 NAMELIST="$WORK/.pipeline_names_complete_maps.txt"
 > "$NAMELIST"
@@ -219,24 +219,24 @@ while read -r mapName; do
   echo "${mapName}.txt" >> "$NAMELIST"
 done <<< "$MAPNAMES"
 
-echo "=== Stage 08: make_tracks (MANE/gencode/repeats intersects) ==="
-submitOrRun "stage08_make_tracks.log" 4000 1 "$BEDTOOLS_MOD" \
-  "cd '$WORK' && bash '$SCRIPTS/08_make_tracks_genuine_barcodes.sh' '$(basename "$NAMELIST")' '$MANE_BED' '$MANE_INTRONS_BED' '$GENCODE_NONCODING_BED' '$REPEATS_BED'"
+echo "=== Stage 09: make_tracks (MANE/gencode/repeats intersects) ==="
+submitOrRun "stage09_make_tracks.log" 4000 1 "$BEDTOOLS_MOD" \
+  "cd '$WORK' && bash '$SCRIPTS/09_make_tracks_genuine_barcodes.sh' '$(basename "$NAMELIST")' '$MANE_BED' '$MANE_INTRONS_BED' '$GENCODE_NONCODING_BED' '$REPEATS_BED'"
 waitForJobs
 echo
 
-echo "=== Stage 09: gc_content (one run per construct) ==="
+echo "=== Stage 10: gc_content (one run per construct) ==="
 while read -r mapName; do
   [ -z "$mapName" ] && continue
   echo "-- $mapName --"
-  submitOrRun "stage09_${mapName}.log" 4000 1 "$BEDTOOLS_MOD" \
-    "cd '$WORK' && bash '$SCRIPTS/09_gc_content_single_genuine_barcodes.sh' '${mapName}.txt' '$CHROM_SIZES' '$GENOME_FASTA'"
+  submitOrRun "stage10_${mapName}.log" 4000 1 "$BEDTOOLS_MOD" \
+    "cd '$WORK' && bash '$SCRIPTS/10_gc_content_single_genuine_barcodes.sh' '${mapName}.txt' '$CHROM_SIZES' '$GENOME_FASTA'"
 done <<< "$MAPNAMES"
 waitForJobs
 echo
 
-echo "=== Stage 10: table_annotation (annotated_tables.txt + annotated_table_used.txt) ==="
-# The 10th arg (norm manifest: mapName<TAB>normSample per COMBOS row) is what makes stage 10
+echo "=== Stage 11: table_annotation (annotated_tables.txt + annotated_table_used.txt) ==="
+# The 10th arg (norm manifest: mapName<TAB>normSample per COMBOS row) is what makes stage 11
 # also emit <construct>.annotated_table_used.txt -- the same table restricted to barcodes with
 # >=2 normalization reads. It was missing here, so this script regenerated .annotated_tables.txt
 # but silently left .annotated_table_used.txt stale from whenever run_pipeline.sh last ran --
@@ -244,8 +244,8 @@ echo "=== Stage 10: table_annotation (annotated_tables.txt + annotated_table_use
 # read the _used files, which would then disagree with their own .annotated_tables.txt.
 NORMMANIFEST="$WORK/.pipeline_norm_manifest.txt"
 awk -F'\t' '{print $1"\t"$2}' "$PARSED/COMBOS.tsv" > "$NORMMANIFEST"
-submitOrRun "stage10_table_annotation.log" 16000 1 "$R_MOD" \
-  "cd '$WORK' && Rscript '$SCRIPTS/10_table_annotation_genuine_barcodes.R' '$WORK/' '$(basename "$NAMELIST")' '$MANE_BED' '$MANE_INTRONS_BED' '$GENCODE_NONCODING_BED' '$TRANS2GENE' '$MANE_EXPRESSION' '$CHROMHMM_BED' '$SPIN_BED' '$(basename "$NORMMANIFEST")'"
+submitOrRun "stage11_table_annotation.log" 16000 1 "$R_MOD" \
+  "cd '$WORK' && Rscript '$SCRIPTS/11_table_annotation_genuine_barcodes.R' '$WORK/' '$(basename "$NAMELIST")' '$MANE_BED' '$MANE_INTRONS_BED' '$GENCODE_NONCODING_BED' '$TRANS2GENE' '$MANE_EXPRESSION' '$CHROMHMM_BED' '$SPIN_BED' '$(basename "$NORMMANIFEST")'"
 waitForJobs
 echo
 

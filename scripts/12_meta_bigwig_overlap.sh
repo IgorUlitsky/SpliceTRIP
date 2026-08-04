@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Stage 17 — metagene bigWig overlap prep (histone marks + speckle/TSA-seq tracks)
+# Stage 12 — metagene bigWig overlap prep (histone marks + speckle/TSA-seq tracks)
 # =============================================================================
 # Sequential port of the real meta_histone_all.csh + meta_histone_summary.sh +
 # meta_speckle_all.csh + meta_speckle_summary.sh (single_combined/*.csh/*.sh) -- same
@@ -11,7 +11,7 @@
 # this whole stage in bsub yourself rather than running it on a login node.
 #
 # Usage
-#   bash 17_meta_bigwig_overlap.sh <mapTypesFile> <histoneBwDir> <speckleDir> <chromSizes> <chainHg38ToHg19>
+#   bash 12_meta_bigwig_overlap.sh <mapTypesFile> <histoneBwDir> <speckleDir> <chromSizes> <chainHg38ToHg19>
 #
 # Requires bedtools + kentUtils modules loaded (bigWigAverageOverBed, liftOver).
 #
@@ -32,7 +32,7 @@
 #          meta/<mapName>.combined_histone.txt      matrix: one row per barcode, one column per
 #                                                    histone_marks.txt entry (alphabetical), value = mean0
 #          meta/<mapName>.combined_speckle.txt      same, for speckle_names.txt
-#          (what scripts/18_plotMetageneCorrelations_uniform.R reads)
+#          (what scripts/13_plotMetageneCorrelations_uniform.R reads)
 # =============================================================================
 set -euo pipefail
 
@@ -90,4 +90,4 @@ while read -r p; do
   paste meta/${p}.*.column_speckle.txt > "meta/${p}.combined_speckle.txt"
 done < "$MAPTYPES_FILE"
 
-echo "stage 17 done"
+echo "stage 12 done"

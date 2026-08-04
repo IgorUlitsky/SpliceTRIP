@@ -34,7 +34,7 @@
 # added doc header and dropping one line (`chromSizes <- read.table(".../hg38.chrom.
 # sizes", ...)`) that loaded a value never actually referenced anywhere else in the
 # script -- dead code, not a behaviour change. No other hardcoded external paths: unlike
-# stages 08-10, everything else it reads is other pipeline stages' own output.
+# stages 09-11, everything else it reads is other pipeline stages' own output.
 # =============================================================================
 library(rtracklayer)
 library(pheatmap)

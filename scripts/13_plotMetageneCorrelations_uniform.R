@@ -1,16 +1,16 @@
 # =============================================================================
-# Stage 18 — plotMetageneCorrelations
+# Stage 13 — plotMetageneCorrelations
 # =============================================================================
 # Verbatim port of igoru's ~/R/trip/plotMetageneCorrelations_singleCombined.R, no logic
 # changes (only the hardcoded default path/mapTypesList/expFile/outName at the top are
 # this pipeline's usual per-script placeholders, overridden by args in practice). Reads
-# stage 17's meta/<mapName>.combined_{histone,speckle}.txt matrices and correlates each
+# stage 12's meta/<mapName>.combined_{histone,speckle}.txt matrices and correlates each
 # barcode's summed expression (log10(1+exp), no norm) against every histone-mark and
 # speckle/TSA-seq track's metagene signal -- per-construct bar charts plus a combined,
 # p-value-annotated correlation heatmap across all constructs.
 #
 # Usage
-#   Rscript 18_plotMetageneCorrelations_uniform.R <path> <corType> <mapTypesList> <expFile> <outName>
+#   Rscript 13_plotMetageneCorrelations_uniform.R <path> <corType> <mapTypesList> <expFile> <outName>
 #
 # Real example (as actually run for single_combined):
 #   Rscript ~/R/trip/plotMetageneCorrelations_singleCombined.R \
@@ -18,11 +18,11 @@
 #     5ss,CPA,5ss_noP,CPA_noP exp_list.txt pearson_expression_singleCombined
 #
 # Inputs   histone_marks.txt, speckle_names.txt        (real, curated per-dataset files)
-#          meta/<mapName>.combined_histone.txt          (stage 17)
-#          meta/<mapName>.<firstHistoneMark>.tab.gz      (stage 17, read only for its
+#          meta/<mapName>.combined_histone.txt          (stage 12)
+#          meta/<mapName>.<firstHistoneMark>.tab.gz      (stage 12, read only for its
 #                                                         barcode-name column)
-#          meta/<mapName>.combined_speckle.txt          (stage 17)
-#          meta/<mapName>.<firstSpeckleTrack>.tab.gz     (stage 17)
+#          meta/<mapName>.combined_speckle.txt          (stage 12)
+#          meta/<mapName>.<firstSpeckleTrack>.tab.gz     (stage 12)
 #          <expFile>                                    mapType<TAB>expName, one row per
 #                                                        expName to sum for that construct
 #                                                        (no norm -- replaces ### COMBOS

@@ -37,7 +37,7 @@
 # with an identical barcode), then one each for exp.log10/map/norm correlation (top:
 # different-barcode subset, bottom: same-barcode subset).
 #
-# No hardcoded paths in this script (unlike stages 08-10) -- everything it reads comes
+# No hardcoded paths in this script (unlike stages 09-11) -- everything it reads comes
 # from other pipeline stages' own output, addressed relative to <path>.
 # =============================================================================
 library(ComplexHeatmap)

@@ -13,7 +13,7 @@
 #   order). Two rows sharing the same niceName are pooled into one violin.
 #     expName  -- <path><expName>.combined_counts.txt must exist and already carry its own
 #                 exp.log10 (a [0,1]-bounded splicing ratio, e.g. spliced/(spliced+unspliced)
-#                 -- stage 14's *.spliced_unspliced.combined_counts.txt is the usual source).
+#                 -- stage 08's *.spliced_unspliced.combined_counts.txt is the usual source).
 #     niceName -- display label for this violin.
 #     nameMap  -- <path><nameMap>.annotated_tables.txt must exist (stage 10 output);
 #                 include the trailing ".txt" (i.e. pass e.g. "A1.txt", matching every other

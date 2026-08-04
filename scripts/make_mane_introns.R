@@ -4,7 +4,7 @@
 # correct 0-based coordinates) -- replacing
 # /home/projects/ulitsky/lidiag/genomic_data/GCF_000001405.40_GRCh38.p14_MANE_introns_new_format.bed,
 # which has a baked-in V2 (start) 1-based/0-based mix-up (see
-# 10_table_annotation_genuine_barcodes.R's earlier fix) and covers a stale transcript set:
+# 11_table_annotation_genuine_barcodes.R's earlier fix) and covers a stale transcript set:
 # 136 transcripts not in the current maneBED at all, and 79 multi-exon maneBED transcripts
 # missing entirely (versus 1025 single-exon maneBED transcripts correctly absent, since
 # those have no introns).
