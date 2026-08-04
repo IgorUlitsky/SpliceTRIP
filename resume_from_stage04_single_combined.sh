@@ -235,9 +235,17 @@ done <<< "$MAPNAMES"
 waitForJobs
 echo
 
-echo "=== Stage 10: table_annotation (annotated_tables.txt) ==="
+echo "=== Stage 10: table_annotation (annotated_tables.txt + annotated_table_used.txt) ==="
+# The 10th arg (norm manifest: mapName<TAB>normSample per COMBOS row) is what makes stage 10
+# also emit <construct>.annotated_table_used.txt -- the same table restricted to barcodes with
+# >=2 normalization reads. It was missing here, so this script regenerated .annotated_tables.txt
+# but silently left .annotated_table_used.txt stale from whenever run_pipeline.sh last ran --
+# a real hazard, since computeIntegrationStats.R and comparePairwiseSharedPositions_uniform.R
+# read the _used files, which would then disagree with their own .annotated_tables.txt.
+NORMMANIFEST="$WORK/.pipeline_norm_manifest.txt"
+awk -F'\t' '{print $1"\t"$2}' "$PARSED/COMBOS.tsv" > "$NORMMANIFEST"
 submitOrRun "stage10_table_annotation.log" 16000 1 "$R_MOD" \
-  "cd '$WORK' && Rscript '$SCRIPTS/10_table_annotation_genuine_barcodes.R' '$WORK/' '$(basename "$NAMELIST")' '$MANE_BED' '$MANE_INTRONS_BED' '$GENCODE_NONCODING_BED' '$TRANS2GENE' '$MANE_EXPRESSION' '$CHROMHMM_BED' '$SPIN_BED'"
+  "cd '$WORK' && Rscript '$SCRIPTS/10_table_annotation_genuine_barcodes.R' '$WORK/' '$(basename "$NAMELIST")' '$MANE_BED' '$MANE_INTRONS_BED' '$GENCODE_NONCODING_BED' '$TRANS2GENE' '$MANE_EXPRESSION' '$CHROMHMM_BED' '$SPIN_BED' '$(basename "$NORMMANIFEST")'"
 waitForJobs
 echo
 
