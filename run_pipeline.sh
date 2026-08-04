@@ -139,6 +139,7 @@ USE_LSF=${USE_LSF:-1}
 # gsla-cpu, so pass it explicitly rather than relying on the site default.
 LSF_QUEUE=${LSF_QUEUE:-gsla-cpu}
 declare -a JOBIDS=()
+declare -A JOBLOG=()
 
 # Each bsub job gets a fresh, non-interactive shell that does NOT inherit whatever lmod
 # modules happen to be loaded in the shell that launched this script, so every command
@@ -163,6 +164,11 @@ submitOrRun() {
   fi
   if [ "$USE_LSF" = "1" ]; then
     local out jobid
+    # bsub -o APPENDS to an existing file (only -oo overwrites), so a stale log from an
+    # earlier run would still carry its old "Successfully completed."/"Exited with exit
+    # code" epilogue -- which is exactly what waitForJobs reads to decide this job's fate.
+    # Remove it first so every marker found belongs to THIS submission.
+    rm -f "$logfile"
     # Compiled-binary modules (bedtools/bowtie2/cutadapt/kentUtils) live under an
     # AMD-specific easybuild tree and aren't visible on non-AMD_EPYC hosts, so every job is
     # pinned to that host class -- cheap and correct even for the pure-R stages.
@@ -174,31 +180,76 @@ submitOrRun() {
       exit 1
     fi
     JOBIDS+=("$jobid")
+    JOBLOG["$jobid"]="$logfile"
   else
     eval "${preamble}$*" > "$logfile" 2>&1
   fi
 }
 
-# waitForJobs -- blocks until every job in JOBIDS reaches a terminal state, then clears the
-# array. Aborts the whole pipeline (set -e via exit 1) if any job EXITed non-zero, since a
-# silently-missing output would just surface as a confusing failure several stages later.
+# waitForJobs -- blocks until every job in JOBIDS has ended, then verifies each one from the
+# epilogue LSF writes into that job's own -o log ("Successfully completed." vs "Exited with
+# exit code N" / "TERM_*"). Aborts the whole pipeline (set -e via exit 1) if any job failed,
+# since a silently-missing output would just surface as a confusing failure several stages
+# later.
+#
+# Deliberately does NOT decide anything from `bjobs -o stat <id>`, which is what this
+# function used to do and what aborted a real IntronTRIP run on 2026-08-04 after all 32 of
+# its stage-04 jobs had in fact succeeded: `bjobs <id>` yields an EMPTY status both once LSF
+# has purged the finished job's record and whenever mbatchd is transiently unreachable
+# ("mbatchd is down or the ports are inaccessable", seen on this cluster the same morning)
+# -- and empty was being mapped to UNKNOWN, i.e. failure. Neither condition says anything
+# about whether the job worked. The job's own log is authoritative and never expires;
+# `bjobs -w` (active listing, RUN/PEND only) is used purely as the "is it still going?"
+# signal, never as the verdict.
 waitForJobs() {
   [ "$USE_LSF" = "1" ] || { JOBIDS=(); return 0; }
   [ ${#JOBIDS[@]} -eq 0 ] && return 0
-  local failed=0 jid st
-  for jid in "${JOBIDS[@]}"; do
-    while true; do
-      st=$(bjobs -noheader -o stat "$jid" 2>/dev/null || true)
-      [ "$st" = "RUN" ] || [ "$st" = "PEND" ] || break
-      sleep 15
+  local failed=0 jid log active gone
+
+  # An ended job normally has its epilogue within seconds; allow GRACE_POLLS x 15 s of
+  # "absent from bjobs but no marker yet" (slow shared-filesystem flush) before giving up on
+  # it. A job that vanished without ever writing an epilogue is a genuine failure.
+  local GRACE_POLLS=8
+  declare -A graceLeft=()
+  for jid in "${JOBIDS[@]}"; do graceLeft["$jid"]=$GRACE_POLLS; done
+
+  local -a pending=("${JOBIDS[@]}")
+  while [ ${#pending[@]} -gt 0 ]; do
+    # `bjobs -w` lists only RUN/PEND jobs; it exits non-zero with an empty list when nothing
+    # is active, which is indistinguishable from a transient failure -- hence the log check
+    # below is what actually decides, and absence here only starts the grace countdown.
+    active=$(bjobs -w 2>/dev/null | awk 'NR>1{print $1}' || true)
+    local -a stillPending=()
+    for jid in "${pending[@]}"; do
+      log=${JOBLOG[$jid]:-}
+      if grep -q "^Successfully completed\." "$log" 2>/dev/null; then
+        continue                                   # done, verified
+      fi
+      if grep -qE "^(Exited with exit code|TERM_)" "$log" 2>/dev/null; then
+        echo "ERROR: job $jid failed -- see $log" >&2
+        grep -E "^(Exited with exit code|TERM_)" "$log" | head -2 >&2
+        failed=1
+        continue
+      fi
+      if grep -qx "$jid" <<< "$active"; then
+        graceLeft["$jid"]=$GRACE_POLLS             # still active, reset the countdown
+        stillPending+=("$jid")
+      else
+        gone=$(( ${graceLeft[$jid]} - 1 ))
+        graceLeft["$jid"]=$gone
+        if [ "$gone" -le 0 ]; then
+          echo "ERROR: job $jid is no longer active but wrote no completion marker to ${log:-<no log>}" >&2
+          failed=1
+        else
+          stillPending+=("$jid")
+        fi
+      fi
     done
-    st=$(bjobs -noheader -o stat "$jid" 2>/dev/null || true)
-    if [ "$st" != "DONE" ]; then
-      echo "ERROR: job $jid finished with status '${st:-UNKNOWN}' (expected DONE)" >&2
-      failed=1
-    fi
+    pending=("${stillPending[@]}")
+    [ ${#pending[@]} -gt 0 ] && sleep 15
   done
-  JOBIDS=()
+
+  JOBIDS=(); JOBLOG=()
   if [ "$failed" = "1" ]; then
     echo "One or more jobs in this stage failed -- aborting pipeline." >&2
     exit 1
