@@ -24,8 +24,10 @@
 #                        deliverable, plus stage 14 if ### SPLICED_UNSPLICED has rows
 #     annotated         01-10/14/17/18 (adds per-construct annotated_tables.txt (+
 #                        annotated_table_used.txt, the same table restricted to barcodes
-#                        with >=2 total normalization reads across every ### COMBOS
-#                        normSample for that construct) -- MANE/gencode/repeats/ChromHMM/
+#                        whose normalization reads SUMMED across that construct's ### COMBOS
+#                        normSamples reach >=2 -- a pooled total, NOT ">=2 in at least one
+#                        library"; see scripts/10_table_annotation_genuine_barcodes.R's
+#                        header note) -- MANE/gencode/repeats/ChromHMM/
 #                        SPIN/GC --, and (stages 17-18, only if histone_marks.txt/
 #                        speckle_names.txt are present) a metagene histone-mark/
 #                        speckle-track correlation report; independent of stage 07, runs

@@ -23,6 +23,16 @@ spinBedPath = "/home/projects/ulitsky/igoru/R/trip/data/K562_SPIN_25kb_hg38.bed"
 # reads summed across every normSample used for that construct (stage 07's own
 # minNormReads=2 only ever checks a single normSample at a time, not the pooled total across
 # reps/pools). Left blank, this step is skipped entirely.
+#
+# NOTE ON THE EXACT RULE (confirmed 2026-08-04, deliberately left as-is): the threshold is
+# applied to the POOLED SUM across the construct's normSamples, which is strictly weaker
+# than ">=2 reads in at least one normSample" -- a barcode seen exactly ONCE in each of two
+# libraries sums to 2 and passes here, though no single library ever saw it twice. If you
+# want the "at least one library" semantics instead, the change is `max` in place of the
+# running sum at the accumulation below. Measured on real IntronTRIP_combined data, the two
+# rules differ by only 769 barcodes across all 8 constructs (0.02-0.12% per construct:
+# A1 47, E1 44, H1 67, B3-6 73, B3-9 41, B1 322, C1 110, D1 65), which is why the pooled-sum
+# behavior was kept rather than changed and every table regenerated.
 normManifestPath = ""
 
 # Arguments from the terminal
@@ -222,7 +232,9 @@ for (name in namesMaps)
   write.table(AnnotTabs[[name]], paste0(path, name, ".annotated_tables.txt"), quote = F, col.names = T, row.names = T, sep = "\t")
 
   # annotated_table_used.txt: same table, restricted to barcodes with >=2 normalization
-  # reads summed across every ### COMBOS normSample used for this construct.
+  # reads SUMMED across every ### COMBOS normSample used for this construct -- pooled total,
+  # not ">=2 in at least one library" (see the note at the top of this file for why, and for
+  # how little the two rules differ in practice).
   if (!is.null(normManifest)) {
     # namesMaps entries carry the ".txt" suffix (stage 06/08's <mapName>.txt convention);
     # normManifest's mapName column is the bare COMBOS value -- strip it to match.
