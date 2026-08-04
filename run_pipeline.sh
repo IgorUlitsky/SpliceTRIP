@@ -135,6 +135,9 @@ export BARCODE_LEN
 # wherever it helps".
 # -----------------------------------------------------------------------------
 USE_LSF=${USE_LSF:-1}
+# LSF's own configured default queue is "short"; this cluster's work belongs on
+# gsla-cpu, so pass it explicitly rather than relying on the site default.
+LSF_QUEUE=${LSF_QUEUE:-gsla-cpu}
 declare -a JOBIDS=()
 
 # Each bsub job gets a fresh, non-interactive shell that does NOT inherit whatever lmod
@@ -163,7 +166,7 @@ submitOrRun() {
     # Compiled-binary modules (bedtools/bowtie2/cutadapt/kentUtils) live under an
     # AMD-specific easybuild tree and aren't visible on non-AMD_EPYC hosts, so every job is
     # pinned to that host class -- cheap and correct even for the pure-R stages.
-    out=$(bsub -R "select[type==X86_64 && model==AMD_EPYC] rusage[mem=${mem}]" -n "$ncores" -o "$logfile" "${preamble}$*" 2>&1)
+    out=$(bsub -q "$LSF_QUEUE" -R "select[type==X86_64 && model==AMD_EPYC] rusage[mem=${mem}]" -n "$ncores" -o "$logfile" "${preamble}$*" 2>&1)
     jobid=$(echo "$out" | grep -oE '<[0-9]+>' | head -1 | tr -d '<>')
     if [ -z "$jobid" ]; then
       echo "ERROR: bsub submission failed:" >&2

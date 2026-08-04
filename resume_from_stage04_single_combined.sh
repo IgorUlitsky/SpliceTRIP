@@ -63,21 +63,88 @@ SPIN_BED=${SPIN_BED:-}
 echo "TTAA_BED=${TTAA_BED:-<off>}  CONT_FACTOR=$CONT_FACTOR"
 echo
 
+# -----------------------------------------------------------------------------
+# Job submission helpers -- same contract as run_pipeline.sh's submitOrRun/waitForJobs
+# (one bsub per independent item, then block on the explicit job IDs). Stage 04's samples
+# are fully independent -- each reads and writes only its own <name>.* files inside its own
+# run directory -- so they are submitted concurrently instead of looped sequentially, which
+# is what run_pipeline.sh already does for its own stage 04. Stages 05+ stay sequential:
+# 05 builds its cross-group contamination reference from EVERY sample's
+# .filtered_barcodes.bed, so it is a genuine barrier.
+#
+# waitForJobs polls each job by its own ID and requires DONE. Deliberately not
+# `bsub -w "done(<jobname>)"`: with several jobs sharing a name LSF applies that to the most
+# recently submitted one only, so a dependent stage can start while siblings are still
+# writing (this silently produced a merge over stale inputs earlier in this project).
+# -----------------------------------------------------------------------------
+USE_LSF=${USE_LSF:-1}
+LSF_QUEUE=${LSF_QUEUE:-gsla-cpu}
+STAGE04_MEM=${STAGE04_MEM:-8000}
+R_MOD=${R_MOD:-R/4.3.1-foss-2022b}
+JOBIDS=()
+
+submitOrRun() {
+  local logfile=$1 mem=$2 ncores=$3 modules=$4
+  shift 4
+  local preamble=""
+  if [ "$modules" != "-" ] && [ -n "$modules" ]; then
+    preamble="source /etc/profile.d/lmod.sh; module load $modules; "
+  fi
+  if [ "$USE_LSF" = "1" ]; then
+    local out jobid
+    out=$(bsub -q "$LSF_QUEUE" -R "rusage[mem=${mem}]" -n "$ncores" -o "$logfile" "${preamble}$*" 2>&1)
+    jobid=$(echo "$out" | grep -oE '<[0-9]+>' | head -1 | tr -d '<>')
+    if [ -z "$jobid" ]; then
+      echo "ERROR: bsub submission failed:" >&2; echo "$out" >&2; exit 1
+    fi
+    JOBIDS+=("$jobid")
+  else
+    eval "${preamble}$*" > "$logfile" 2>&1
+  fi
+}
+
+waitForJobs() {
+  [ "$USE_LSF" = "1" ] || { JOBIDS=(); return 0; }
+  [ ${#JOBIDS[@]} -eq 0 ] && return 0
+  local failed=0 jid st
+  for jid in "${JOBIDS[@]}"; do
+    while true; do
+      st=$(bjobs -noheader -o stat "$jid" 2>/dev/null || true)
+      [ "$st" = "RUN" ] || [ "$st" = "PEND" ] || break
+      sleep 15
+    done
+    st=$(bjobs -noheader -o stat "$jid" 2>/dev/null || true)
+    if [ "$st" != "DONE" ]; then
+      echo "ERROR: job $jid finished with status '${st:-UNKNOWN}' (expected DONE)" >&2
+      failed=1
+    fi
+  done
+  JOBIDS=()
+  if [ "$failed" = "1" ]; then
+    echo "One or more stage-04 jobs failed -- aborting pipeline." >&2
+    exit 1
+  fi
+}
+
 # =============================================================================
-# Stage 04: filterMappings (+ TTAA if configured) -- run per sample, in that sample's own
-# run directory (dirname of its FASTQ_MAPS path_prefix), not in $WORK.
+# Stage 04: filterMappings (+ TTAA if configured) -- one job per sample, run in that
+# sample's own run directory (dirname of its FASTQ_MAPS path_prefix), not in $WORK.
 # =============================================================================
-echo "=== Stage 04: filterMappings (+ TTAA if configured) ==="
+echo "=== Stage 04: filterMappings (+ TTAA if configured; one job per sample) ==="
 while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
   sampleDir="$(dirname "$pathPrefix")"
   echo "-- $name (in $sampleDir) --"
+  # Per-sample log: concurrent jobs would otherwise interleave into one stream.
   if [ -n "$TTAA_BED" ]; then
-    (cd "$sampleDir" && Rscript "$SCRIPTS/04_filterMappings_TTAA.R" "$sampleDir/" "$name" ttaaFilter "$TTAA_BED")
+    submitOrRun "$sampleDir/${name}_04_filterMappings.log" "$STAGE04_MEM" 1 "$R_MOD" \
+      "cd '$sampleDir' && Rscript '$SCRIPTS/04_filterMappings_TTAA.R' '$sampleDir/' '$name' ttaaFilter '$TTAA_BED'"
   else
-    (cd "$sampleDir" && Rscript "$SCRIPTS/04_filterMappings_TTAA.R" "$sampleDir/" "$name")
+    submitOrRun "$sampleDir/${name}_04_filterMappings.log" "$STAGE04_MEM" 1 "$R_MOD" \
+      "cd '$sampleDir' && Rscript '$SCRIPTS/04_filterMappings_TTAA.R' '$sampleDir/' '$name'"
   fi
 done < "$PARSED/FASTQ_MAPS.tsv"
+waitForJobs
 echo
 
 # =============================================================================
