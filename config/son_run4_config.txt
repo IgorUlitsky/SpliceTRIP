@@ -1,0 +1,45 @@
+# TRIP unified pipeline — SON_run4 config (stages 01-06 only, genuine_barcodes target)
+#
+# New data delivered into /home/projects/ulitsky/shared/data/human/TRIP/SON_run4/ on
+# 2026-08-07. Per names.map.txt, only 4 Map libraries are in scope for now (the B1
+# construct, technical reps 1-1/1-2/2-1/2-2, one Pool each) -- the 5cDNAMap_* files in the
+# same directory (5' cDNA mapping libraries for other constructs/experiments, A1/B1/B3_9/
+# noP_5ss/noP_CPA) are NOT part of names.map.txt and are intentionally excluded here; the
+# GLOBAL section (adapters/primers/references) is copied verbatim from
+# introntrip_combined_config.txt, per instruction that this is "the same configuration as
+# other IntronTRIP data".
+#
+# mapName SON_B1 (matches SON_combined's SON_A1/SON_B3_9/SON_E1 naming convention, distinct
+# from IntronTRIP_combined's plain "B1" construct); contamination_batch SON_run4 (all 4
+# samples were sequenced together in this one delivery, so they form a single batch, same
+# convention as SON_combined's LP_run1/IntronTRIP_combined's run2/run3/run4).
+
+### GLOBAL
+BARCODE_LEN	18
+BOWTIE2_INDEX	/home/projects/ulitsky/shared/data/human/sequence/bowtie2/hg38
+CONT_FACTOR	10
+TTAA_BED	/home/projects/ulitsky/igoru/data/human/hg38_ttaa.bed
+DPNII_BED	/home/projects/ulitsky/igoru/data/human/hg38_dpnii.bed
+R1_PRIMER	AGAAGTTCAACTCGGTACCAGAGCCACC
+R1_SUFFIX	GGATC
+R2_PRIMER	GTACGTCACAATATGATTATCTTTCTAGGGTTAA
+MANE_BED	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genomic.bed
+MANE_INTRONS_BED	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genomic.introns_new_format.bed
+GENCODE_NONCODING_BED	/home/projects/ulitsky/lidiag/genomic_data/gencode.v46.annotation.noncoding.bed
+REPEATS_BED	/home/projects/ulitsky/lidiag/genomic_data/hg38.repeats.bed
+CHROM_SIZES	/home/projects/ulitsky/shared/ucsctracks/hg38/hg38.chrom.sizes
+GENOME_FASTA	/home/projects/ulitsky/lidiag/genomic_data/hg38.fa
+TRANS2GENE	/home/projects/ulitsky/igoru/data/human/MANE.GRCh38.v1.0.refseq_genomic.trans2gene.txt
+MANE_EXPRESSION	/home/projects/ulitsky/igoru/data/human/ENCODE/K562/K562_1_MANEReadsPerGene.out.tab
+CHROMHMM_BED	/home/projects/ulitsky/shared/data/human/K562_ChromHMM_Kellis_ENCFF319VXX.bed.gz
+SPIN_BED	/home/projects/ulitsky/igoru/R/trip/data/K562_SPIN_25kb_hg38.bed
+SPECKLE_DIR	/home/projects/ulitsky/shared/data/human/speckles/
+HISTONE_BW_DIR	/home/projects/ulitsky/shared/data/human/ENCODE/K562
+HG38_TO_HG19_CHAIN	/home/projects/ulitsky/igoru/data/combinedTables/chains/hg38ToHg19.over.chain
+
+### FASTQ_MAPS
+# name<TAB>path_prefix<TAB>r1_suffix<TAB>r2_suffix<TAB>mapName<TAB>contamination_batch
+Map_SON_B1_1-1_S1	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run4/Map_SON_B1_1-1_S1	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B1	SON_run4
+Map_SON_B1_1-2_S2	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run4/Map_SON_B1_1-2_S2	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B1	SON_run4
+Map_SON_B1_2-1_S3	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run4/Map_SON_B1_2-1_S3	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B1	SON_run4
+Map_SON_B1_2-2_S4	/home/projects/ulitsky/igoru/data/human/TRIP/SON_run4/Map_SON_B1_2-2_S4	_R1_001.fastq.gz	_R2_001.fastq.gz	SON_B1	SON_run4

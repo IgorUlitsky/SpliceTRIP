@@ -148,7 +148,13 @@ declare -A JOBLOG=()
 # below loads what it needs explicitly (module names below match what's actually available
 # via `module avail` on this cluster; bump these if the cluster's module set changes).
 CUTADAPT_MOD="cutadapt/4.2-GCCcore-11.3.0"
-BOWTIE2_MOD="Bowtie2/2.5.1-GCC-12.3.0"
+SAMTOOLS_MOD="SAMtools/1.21-GCC-13.2.0"
+# 02_run_bowtie2.sh also pipes through samtools view/sort/index and bedtools bamtobed (see
+# that script's own header -- it's a reconstruction of an ad hoc alignment step that never
+# ran through this orchestrator before), so its module list needs to cover all three, not
+# just Bowtie2 itself -- caught 2026-08-07 when stage 02 failed for real for the first time
+# (SON_run4) with "samtools: command not found".
+BOWTIE2_MOD="Bowtie2/2.5.1-GCC-12.3.0 $SAMTOOLS_MOD BEDTools/2.31.1-GCC-13.3.0"
 R_MOD="R-bundle-Bioconductor/3.19-foss-2023b-R-4.4.1"
 BEDTOOLS_MOD="BEDTools/2.31.1-GCC-13.3.0"
 KENTUTILS_MOD="kentUtils/v377"
