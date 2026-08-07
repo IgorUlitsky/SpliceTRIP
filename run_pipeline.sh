@@ -327,10 +327,16 @@ if [ "$TARGET" = "mapping" ]; then echo "target=mapping reached, stopping."; exi
 # Stage 03/04: per ### FASTQ_MAPS sample
 # =============================================================================
 echo "=== Stage 03: analyzeTRIPMapping (one job per sample) ==="
+# 03_analyzeTRIPMapping.R reads its two inputs with base read.table() rather than
+# data.table::fread(), which is far more memory-hungry per row -- 8000 (the original
+# default, also never stress-tested for real before) reliably OOM'd (TERM_MEMLIMIT) on all
+# 4 SON_run4 Map libraries despite each decompressing to well under 1GB (~6-7M lines each).
+# Bumped generously rather than tuned tight, matching this project's usual OOM-recovery
+# margin for base-R barcode-table jobs.
 while IFS=$'\t' read -r name pathPrefix r1suf r2suf mapName batch; do
   [ -z "$name" ] && continue
   echo "-- $name --"
-  submitOrRun "${name}_03_analyzeTRIPMapping.log" 8000 1 "$R_MOD" \
+  submitOrRun "${name}_03_analyzeTRIPMapping.log" 32000 1 "$R_MOD" \
     Rscript "$SCRIPTS/03_analyzeTRIPMapping.R" "$WORK/" "$WORK/02_mapping/" "$name" "$BARCODE_LEN"
 done < "$PARSED/FASTQ_MAPS.tsv"
 waitForJobs
