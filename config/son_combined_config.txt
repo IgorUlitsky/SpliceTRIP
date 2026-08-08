@@ -42,6 +42,14 @@
 # a slightly longer trim of the same sequence than SON_run3.5's), Norm/Total are R1-only
 # (both adapters blank). COMBOS rows are combos.B1.txt verbatim (36 rows, mapName's ".txt"
 # suffix stripped to match this file's SON_A1/SON_B3_9/SON_E1 convention).
+#
+# SPLICED_UNSPLICED rows (added 2026-08-08, stage 08) are spliced_unspliced.B1.txt with a
+# fix: its first two rows' outName said B1_2_DMSO_rep3/B1_2_Protac_rep3 but named pool-1
+# samples (SON_TRIP_B1_1_1_...) -- identical to rows 3-4's outName, which really are pool 2
+# (SON_TRIP_B1_2_1_...). Would have made stage 08 silently overwrite one pool's ratio
+# outputs with the other's. Corrected to B1_1_DMSO_rep3/B1_1_Protac_rep3 to match every
+# other outName's <pool digit from the sample name> convention (confirmed against
+# spliced_unspliced.txt).
 
 ### GLOBAL
 BARCODE_LEN	18
@@ -430,3 +438,15 @@ E1_2_DMSO_rep2	SON_TRIP_E1_2_1_DMSO_Spliced_Rep2_S10	SON_TRIP_E1_2_1_DMSO_Unspli
 E1_2_DMSO_rep3	SON_TRIP_E1_2_1_DMSO_Spliced_Rep3_S14	SON_TRIP_E1_2_1_DMSO_Unspliced_Rep3_S22	SON_TRIP_E1_2_1_DMSO_Total_Rep3_S6
 E1_2_Protac_rep2	SON_TRIP_E1_2_1_Protac_Spliced_Rep2_S12	SON_TRIP_E1_2_1_Protac_Unspliced_Rep2_S20	SON_TRIP_E1_2_1_Protac_Total_Rep2_S4
 E1_2_Protac_rep3	SON_TRIP_E1_2_1_Protac_Spliced_Rep3_S16	SON_TRIP_E1_2_1_Protac_Unspliced_Rep3_S24	SON_TRIP_E1_2_1_Protac_Total_Rep3_S8
+B1_1_DMSO_rep3	SON_TRIP_B1_1_1_DMSO_Spliced_Rep3_S47	SON_TRIP_B1_1_1_DMSO_Unspliced_Rep3_S51	SON_TRIP_B1_1_1_DMSO_Total_Rep3_S43
+B1_1_Protac_rep3	SON_TRIP_B1_1_1_Protac_Spliced_Rep3_S49	SON_TRIP_B1_1_1_Protac_Unspliced_Rep3_S53	SON_TRIP_B1_1_1_Protac_Total_Rep3_S45
+B1_2_DMSO_rep3	SON_TRIP_B1_2_1_DMSO_Spliced_Rep3_S48	SON_TRIP_B1_2_1_DMSO_Unspliced_Rep3_S52	SON_TRIP_B1_2_1_DMSO_Total_Rep3_S44
+B1_2_Protac_rep3	SON_TRIP_B1_2_1_Protac_Spliced_Rep3_S50	SON_TRIP_B1_2_1_Protac_Unspliced_Rep3_S54	SON_TRIP_B1_2_1_Protac_Total_Rep3_S46
+B1_1_DMSO	Spliced_SON_B1_1_1_DMSO_S49	Unspliced_SON_B1_1_1_DMSO_S57	Total_SON_B1_1_1_DMSO_S41
+B1_1_Protac	Spliced_SON_B1_1_1_PROTAC_S53	Unspliced_SON_B1_1_1_PROTAC_S61	Total_SON_B1_1_1_PROTAC_S45
+B1_1_DMSO_rep2	Spliced_SON_B1_1_2_DMSO_S50	Unspliced_SON_B1_1_2_DMSO_S58	Total_SON_B1_1_2_DMSO_S42
+B1_1_Protac_rep2	Spliced_SON_B1_1_2_PROTAC_S54	Unspliced_SON_B1_1_2_PROTAC_S62	Total_SON_B1_1_2_PROTAC_S46
+B1_2_DMSO	Spliced_SON_B1_2_1_DMSO_S51	Unspliced_SON_B1_2_1_DMSO_S59	Total_SON_B1_2_1_DMSO_S43
+B1_2_Protac	Spliced_SON_B1_2_1_PROTAC_S55	Unspliced_SON_B1_2_1_PROTAC_S63	Total_SON_B1_2_1_PROTAC_S47
+B1_2_DMSO_rep2	Spliced_SON_B1_2_2_DMSO_S52	Unspliced_SON_B1_2_2_DMSO_S60	Total_SON_B1_2_2_DMSO_S44
+B1_2_Protac_rep2	Spliced_SON_B1_2_2_PROTAC_S56	Unspliced_SON_B1_2_2_PROTAC_S64	Total_SON_B1_2_2_PROTAC_S48
