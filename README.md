@@ -217,10 +217,12 @@ if not given — a Hi-C-style DpnII digest-fragment map, not a direct site list;
 positions are recovered as each fragment's start, excluding each chromosome's first
 fragment, which starts at 0 as a chromosome-boundary artefact, not a real cut site). Written
 to `<mapName>.txt.retained_barcodes_genuine.dnpII_dists.txt` (`chr, start, strand, barcode,
-dpnII_dist`, with a header row — unlike this stage's other outputs, which are headerless
-BED). Verified on a real 5ss construct: median downstream distance 179 bp, consistent with
-the expected ~256 bp average genomic DpnII spacing (median of an exponential distance-to-
-nearest-point-in-one-direction ≈ 0.69 × mean spacing ≈ 177 bp).
+dpnII_dist, dpnII_dist_upstream`, with a header row — unlike this stage's other outputs,
+which are headerless BED). `dpnII_dist_upstream` (added 2026-08-12) is the mirror-image
+nearest-*upstream* distance, same strand-relative convention flipped; `dpnII_dist`'s own
+values/meaning are unchanged. Verified on a real 5ss construct: median downstream distance
+179 bp, consistent with the expected ~256 bp average genomic DpnII spacing (median of an
+exponential distance-to-nearest-point-in-one-direction ≈ 0.69 × mean spacing ≈ 177 bp).
 
 Compare against a random-genomic background with `scripts/plot_dpnII_distances.R
 <path> <distFiles> <ttaaBedPath> <dpniiBedPath> <outPdf> [nSample=10000]` — samples

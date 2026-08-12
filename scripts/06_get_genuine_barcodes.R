@@ -111,9 +111,12 @@ singletons = subset(filtered,locationCounts[filtered$Group.1]==1)
 
 # ============================================================================
 # ===== NEW BLOCK (DpnII distance) — for each genuine (singleton) position, distance
-# to the nearest DOWNSTREAM DpnII site, downstream relative to the integration's own
-# strand (+ strand: next site at a higher coordinate; - strand: next site at a lower
-# coordinate). hg38_dpnii.bed lists DpnII RESTRICTION FRAGMENTS (a Hi-C-style digest
+# to the nearest DOWNSTREAM DpnII site (dpnII_dist column), downstream relative to the
+# integration's own strand (+ strand: next site at a higher coordinate; - strand: next
+# site at a lower coordinate) -- plus, as a second column (dpnII_dist_upstream), the
+# mirror-image nearest-UPSTREAM distance (added 2026-08-12 for a consumer that wanted
+# upstream specifically; dpnII_dist's own downstream meaning/values are unchanged).
+# hg38_dpnii.bed lists DpnII RESTRICTION FRAGMENTS (a Hi-C-style digest
 # map: "chr1 0 11159 HIC_chr1_1 ..."), not individual cut-site coordinates directly --
 # but since consecutive fragments share a boundary and that shared boundary IS the cut
 # site, the site positions are just every fragment's start EXCEPT each chromosome's
@@ -145,8 +148,30 @@ nearestDownstreamDpnII <- function(chrom, pos, strand, byChrom)
   }
 }
 
+# Mirror of nearestDownstreamDpnII, same strand-relative convention (upstream = the
+# opposite direction from downstream above): + strand looks at the nearest site at a
+# LOWER coordinate (behind); - strand looks at the nearest site at a HIGHER coordinate.
+# Added as a second, additional distance column -- nearestDownstreamDpnII/dpnII_dist above
+# is unchanged, so existing consumers of this file see no difference.
+nearestUpstreamDpnII <- function(chrom, pos, strand, byChrom)
+{
+  vec = byChrom[[chrom]]
+  if (is.null(vec)) return(NA_real_)
+  if (strand == "+") {
+    idx = findInterval(pos, vec)
+    if (idx < 1L) return(NA_real_)
+    pos - vec[idx]
+  } else {
+    idx = findInterval(pos - 1L, vec) + 1L
+    if (idx > length(vec)) return(NA_real_)
+    vec[idx] - pos
+  }
+}
+
 singletonsOrdered = singletons[order(singletons$chr,as.numeric(singletons$start)),]
 dpniiDist = mapply(nearestDownstreamDpnII, singletonsOrdered$chr, as.numeric(singletonsOrdered$start),
+                    singletonsOrdered$strand, MoreArgs = list(byChrom = dpniiByChrom))
+dpniiDistUpstream = mapply(nearestUpstreamDpnII, singletonsOrdered$chr, as.numeric(singletonsOrdered$start),
                     singletonsOrdered$strand, MoreArgs = list(byChrom = dpniiByChrom))
 
 # A handful of distances come out implausibly large (multi-kb to tens of kb) -- almost
@@ -166,12 +191,18 @@ print(paste0("Expected by-chance DpnII spacing at ", genomeGC*100, "% GC (no Ns)
              round(expectedDist,1), " bp; NA-ing ", nCapped,
              " distances beyond 10x that (", round(maxPlausibleDist,1), " bp)"))
 
+nCappedUpstream = sum(!is.na(dpniiDistUpstream) & dpniiDistUpstream > maxPlausibleDist)
+dpniiDistUpstream[!is.na(dpniiDistUpstream) & dpniiDistUpstream > maxPlausibleDist] = NA_real_
+print(paste0("NA-ing ", nCappedUpstream, " upstream distances beyond the same 10x cap"))
+
 print(paste("DpnII downstream distance: median", median(dpniiDist, na.rm = TRUE),
             "bp across", sum(!is.na(dpniiDist)), "of", length(dpniiDist), "positions"))
+print(paste("DpnII upstream distance: median", median(dpniiDistUpstream, na.rm = TRUE),
+            "bp across", sum(!is.na(dpniiDistUpstream)), "of", length(dpniiDistUpstream), "positions"))
 write.table(
   data.frame(chr = singletonsOrdered$chr, start = singletonsOrdered$start,
              strand = singletonsOrdered$strand, barcode = singletonsOrdered$Group.1,
-             dpnII_dist = dpniiDist),
+             dpnII_dist = dpniiDist, dpnII_dist_upstream = dpniiDistUpstream),
   paste0(path, nameMap, ".retained_barcodes_genuine.dnpII_dists.txt"),
   sep = "\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
 # ===== end NEW BLOCK ========================================================

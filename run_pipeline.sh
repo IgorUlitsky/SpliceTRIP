@@ -507,12 +507,22 @@ EXPLIST="$WORK/.pipeline_exp_list.txt"
 awk -F'\t' '{print $1"\t"$3}' "$PARSED/COMBOS.tsv" > "$EXPLIST"
 ALLMAPNAMES=$(echo "$MAPNAMES" | paste -sd,)
 if [ -f "$WORK/histone_marks.txt" ] && [ -f "$WORK/speckle_names.txt" ]; then
-  MAPTYPES="$WORK/.pipeline_map_types.txt"
-  printf '%s\n' "$MAPNAMES" > "$MAPTYPES"
-
-  echo "=== Stage 12: meta_bigwig_overlap (bedtools slop + bigWigAverageOverBed) ==="
-  submitOrRun "stage12_meta_bigwig.log" 8000 1 "$BEDTOOLS_MOD $KENTUTILS_MOD" bash "$SCRIPTS/12_meta_bigwig_overlap.sh" "$(basename "$MAPTYPES")" \
-    "$HISTONE_BW_DIR" "$SPECKLE_DIR" "$CHROM_SIZES" "$HG38_TO_HG19_CHAIN"
+  echo "=== Stage 12: meta_bigwig_overlap (bedtools slop + bigWigAverageOverBed, one job per construct) ==="
+  # 12_meta_bigwig_overlap.sh's own header flags this: it's a straight sequential port of
+  # the original csh scripts, looping over every (construct x histone/speckle track) pair
+  # as one bigWigAverageOverBed call after another inside a single job -- e.g. 4
+  # constructs x 59 tracks (single_combined) is 236 sequential external-tool calls in one
+  # job. The script itself already accepts a MAPTYPES_FILE with just one mapName, so no
+  # change to its own logic is needed -- fan out one job per construct here instead of a
+  # single job over the whole list, matching stage 10 (gc_content)'s existing
+  # one-job-per-construct convention just above.
+  while read -r mapName; do
+    [ -z "$mapName" ] && continue
+    oneMapType="$WORK/.pipeline_map_types.${mapName}.txt"
+    printf '%s\n' "$mapName" > "$oneMapType"
+    submitOrRun "stage12_meta_bigwig_${mapName}.log" 8000 1 "$BEDTOOLS_MOD $KENTUTILS_MOD" bash "$SCRIPTS/12_meta_bigwig_overlap.sh" "$(basename "$oneMapType")" \
+      "$HISTONE_BW_DIR" "$SPECKLE_DIR" "$CHROM_SIZES" "$HG38_TO_HG19_CHAIN"
+  done <<< "$MAPNAMES"
   waitForJobs
   echo
 
