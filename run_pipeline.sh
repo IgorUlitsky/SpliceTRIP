@@ -159,10 +159,25 @@ R_MOD="R-bundle-Bioconductor/3.19-foss-2023b-R-4.4.1"
 BEDTOOLS_MOD="BEDTools/2.31.1-GCC-13.3.0"
 KENTUTILS_MOD="kentUtils/v377"
 
+# Extra bsub select clause for the stages that load a Bioconductor package with compiled
+# code (rtracklayer, ComplexHeatmap). model==AMD_EPYC below is NOT a fine enough filter: it
+# matches both amd_epyc_9k_* (EPYC 9004, Zen 4, has AVX-512) and amd_epyc_7k_* (cn650-cn653,
+# EPYC 7702, Zen 2, does NOT). R-bundle-Bioconductor/3.19's rtracklayer .so carries AVX-512
+# instructions, so on a 7k host dyn.load() dies instantly with "*** caught illegal operation
+# *** cause 'illegal operand'" and LSF exit code 132 (SIGILL) -- observed 2026-08-19, stage 11
+# on cn651. ncpus>=160 is the discriminator: every 9k CPU host has 168 (84c) or 256 (128c)
+# ncpus while every 7k host has 128 or fewer, and unlike `bsub -m amd_epyc_9k_*_cpu_hosts`
+# (rejected with "Host or host group is not used by the queue") it works from gsla-cpu, whose
+# only host group is gsla_cpu_hosts. The pure-R and bedtools stages run fine on either
+# generation, so only the Bioconductor stages pay the narrower selection.
+BIOC_SELECT=${BIOC_SELECT:-" && ncpus>=160"}
+
 # submitOrRun <logfile> <mem_mb> <n_cores> <modules|-> <command...>
 # <modules> is a space-separated list of lmod module names to load before running <command>
 # (pass "-" for none). Applied in both the bsub and local-eval branches so USE_LSF=0 behaves
 # the same way (harmless if the module is already loaded interactively).
+# Prefix a call with SUBMIT_SELECT="<extra select terms>" (see BIOC_SELECT above) to narrow
+# that one job's host selection; unset, the job goes to any host matching -R below.
 submitOrRun() {
   local logfile=$1 mem=$2 ncores=$3 modules=$4
   shift 4
@@ -180,7 +195,7 @@ submitOrRun() {
     # Compiled-binary modules (bedtools/bowtie2/cutadapt/kentUtils) live under an
     # AMD-specific easybuild tree and aren't visible on non-AMD_EPYC hosts, so every job is
     # pinned to that host class -- cheap and correct even for the pure-R stages.
-    out=$(bsub -q "$LSF_QUEUE" -R "select[type==X86_64 && model==AMD_EPYC] rusage[mem=${mem}]" -n "$ncores" -o "$logfile" "${preamble}$*" 2>&1)
+    out=$(bsub -q "$LSF_QUEUE" -R "select[type==X86_64 && model==AMD_EPYC${SUBMIT_SELECT:-}] rusage[mem=${mem}]" -n "$ncores" -o "$logfile" "${preamble}$*" 2>&1)
     jobid=$(echo "$out" | grep -oE '<[0-9]+>' | head -1 | tr -d '<>')
     if [ -z "$jobid" ]; then
       echo "ERROR: bsub submission failed:" >&2
@@ -481,7 +496,7 @@ echo
 echo "=== Stage 11: table_annotation (annotated_tables.txt + annotated_table_used.txt) ==="
 NORMMANIFEST="$WORK/.pipeline_norm_manifest.txt"
 awk -F'\t' '{print $1"\t"$2}' "$PARSED/COMBOS.tsv" > "$NORMMANIFEST"
-submitOrRun "stage11_table_annotation.log" 16000 1 "$R_MOD" Rscript "$SCRIPTS/11_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
+SUBMIT_SELECT="$BIOC_SELECT" submitOrRun "stage11_table_annotation.log" 16000 1 "$R_MOD" Rscript "$SCRIPTS/11_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
   "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$TRANS2GENE" "$MANE_EXPRESSION" "$CHROMHMM_BED" "$SPIN_BED" "$(basename "$NORMMANIFEST")"
 waitForJobs
 echo
@@ -527,7 +542,7 @@ if [ -f "$WORK/histone_marks.txt" ] && [ -f "$WORK/speckle_names.txt" ]; then
   echo
 
   echo "=== Stage 13: plotMetageneCorrelations ==="
-  submitOrRun "stage13_metagene.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/13_plotMetageneCorrelations_uniform.R" "$WORK/" pearson "$ALLMAPNAMES" \
+  SUBMIT_SELECT="$BIOC_SELECT" submitOrRun "stage13_metagene.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/13_plotMetageneCorrelations_uniform.R" "$WORK/" pearson "$ALLMAPNAMES" \
     "$(basename "$EXPLIST")" metagene_correlations
   waitForJobs
   echo

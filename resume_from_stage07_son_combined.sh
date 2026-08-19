@@ -30,11 +30,19 @@ USE_LSF=${USE_LSF:-1}
 LSF_QUEUE=${LSF_QUEUE:-gsla-cpu}
 R_MOD="R-bundle-Bioconductor/3.19-foss-2023b-R-4.4.1"
 BEDTOOLS_MOD="BEDTools/2.31.1-GCC-13.3.0"
+# See run_pipeline.sh: model==AMD_EPYC matches both amd_epyc_9k_* (Zen 4, AVX-512) and
+# amd_epyc_7k_* (cn650-cn653, EPYC 7702, Zen 2, no AVX-512), and R-bundle-Bioconductor/3.19's
+# rtracklayer .so needs AVX-512 -- on a 7k host it dies at dyn.load() with SIGILL (exit 132),
+# which is exactly how stage 11 failed on cn651 on 2026-08-19. Only stage 11 loads it here.
+# ncpus>=160 picks the 9k generation (168/256 ncpus vs 7k's <=128); `bsub -m
+# amd_epyc_9k_*_cpu_hosts` is rejected by gsla-cpu ("host group is not used by the queue").
+BIOC_SELECT=${BIOC_SELECT:-" && ncpus>=160"}
 
 declare -a JOBIDS=()
 declare -A JOBLOG=()
 
 # submitOrRun <logfile> <mem_mb> <n_cores> <modules|-> [-w <lsf_dep>] <command...>
+# Prefix a call with SUBMIT_SELECT="<extra select terms>" to narrow that job's host choice.
 # Same contract as run_pipeline.sh's submitOrRun (AMD_EPYC pinning, module preamble, log-
 # verified completion), plus an optional -w LSF dependency so independent chains can be
 # submitted up front rather than serialized behind a bash-level barrier.
@@ -52,7 +60,7 @@ submitOrRun() {
     rm -f "$logfile"
     local -a depArgs=()
     [ -n "$dep" ] && depArgs=(-w "$dep")
-    out=$(bsub -q "$LSF_QUEUE" -R "select[type==X86_64 && model==AMD_EPYC] rusage[mem=${mem}]" \
+    out=$(bsub -q "$LSF_QUEUE" -R "select[type==X86_64 && model==AMD_EPYC${SUBMIT_SELECT:-}] rusage[mem=${mem}]" \
           -n "$ncores" -o "$logfile" "${depArgs[@]}" "${preamble}$*" 2>&1)
     jobid=$(echo "$out" | grep -oE '<[0-9]+>' | head -1 | tr -d '<>')
     if [ -z "$jobid" ]; then
@@ -176,7 +184,7 @@ echo "=== Stage 11: table_annotation (after all of stage 10) ==="
 NORMMANIFEST="$WORK/.pipeline_norm_manifest.txt"
 awk -F'\t' '{print $1"\t"$2}' "$PARSED/COMBOS.tsv" > "$NORMMANIFEST"
 DEP11=$(printf "ended(%s) && " "${JIDS10[@]}"); DEP11=${DEP11% && }
-submitOrRun "stage11_table_annotation.log" 16000 1 "$R_MOD" -w "$DEP11" \
+SUBMIT_SELECT="$BIOC_SELECT" submitOrRun "stage11_table_annotation.log" 16000 1 "$R_MOD" -w "$DEP11" \
   Rscript "$SCRIPTS/11_table_annotation_genuine_barcodes.R" "$WORK/" "$(basename "$NAMELIST")" \
   "$MANE_BED" "$MANE_INTRONS_BED" "$GENCODE_NONCODING_BED" "$TRANS2GENE" "$MANE_EXPRESSION" \
   "$CHROMHMM_BED" "$SPIN_BED" "$(basename "$NORMMANIFEST")"
