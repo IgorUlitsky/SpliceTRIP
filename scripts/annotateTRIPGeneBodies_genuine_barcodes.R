@@ -7,7 +7,13 @@
 # plotSplicingEfficiencies_uniform.R and computeIntegrationStats.R.
 #
 # Usage
-#   Rscript annotateTRIPGeneBodies_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf> [speckleDir]
+#   Rscript annotateTRIPGeneBodies_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf> [speckleDir] [normalizeRPM]
+#   normalizeRPM (optional, default FALSE): TRUE/FALSE -- when TRUE, exp is converted to
+#   reads-per-million (of this library's own total exp) before the log10(1+x) transform that
+#   produces exp.log10, so expression is normalized for sequencing depth. Only applies when
+#   exp.log10 isn't already present in combined_counts.txt (see hasOwnExpLog10 below). Pass
+#   speckleDir explicitly (even if just the default path) when you want to set this, since
+#   it's the next positional argument.
 #
 # Inputs   <mapName>.txt.annotated_tables.txt   (stage 10)
 #          <expName>.combined_counts.txt        (stage 07, or any pipeline producing the
@@ -97,6 +103,7 @@ plot_name <- '/home/projects/ulitsky/shared/data/human/TRIP/single_combined/anno
 speckleDir <- "/home/projects/ulitsky/shared/data/human/speckles/"
 # Arguments from the terminal
 myArgs = commandArgs(trailingOnly = T)
+normalizeRPM = FALSE
 if (length(myArgs)>0)
 {
   path = myArgs[1]
@@ -106,11 +113,13 @@ if (length(myArgs)>0)
   # speckleDir (5th arg) is optional -- keeps its default above when omitted, same
   # length-guarded pattern as stage 06's barcodeLen/dpniiBedPath.
   if (length(myArgs)>=5 && nzchar(myArgs[5])) speckleDir = myArgs[5]
+  if (length(myArgs)>=6) normalizeRPM = as.logical(myArgs[6])
   namesExp<-read.table(paste0(path, namesExp_file))$V1
 }
 print(path)
 print(namesExp)
 print(plot_name)
+print(paste("normalizeRPM:", normalizeRPM))
 
 niceNames = gsub("_Expression", "", namesExp)
 niceNames = gsub("Exp_", "", niceNames)
@@ -157,7 +166,17 @@ for (name in namesExp)
   annotTable$Barcode = rownames(annotTable)
   merged = merge(annotTable,countsTab,by=c("Barcode","Chr","Pos","Strand"))
   if (!hasOwnExpLog10) {
-    merged$exp.log10 = log(1+merged$exp,10)
+    # normalizeRPM (default FALSE, opt in via the 6th command-line argument): converts
+    # merged$exp to reads-per-million (of this library's own total exp, i.e. sum(merged$exp))
+    # before the log10(1+x) transform, so exp.log10 reflects relative expression normalized
+    # for this library's sequencing depth instead of raw read counts. Only feeds exp.log10 --
+    # merged$exp itself, and exp.norm below (a distinct metric against merged$norm), are left
+    # untouched.
+    expForLog10 = merged$exp
+    if (normalizeRPM) {
+      expForLog10 = merged$exp / sum(merged$exp) * 1e6
+    }
+    merged$exp.log10 = log(1+expForLog10,10)
   }
   merged$exp.norm = log((1 + merged$exp) / (1 + merged$norm), 2)
   rownames(merged)=merged$Barcode

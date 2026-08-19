@@ -7,7 +7,11 @@
 # plotSplicingEfficiencies_uniform.R and computeIntegrationStats.R.
 #
 # Usage
-#   Rscript annotateTRIP_positions_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf>
+#   Rscript annotateTRIP_positions_genuine_barcodes.R <path> <mapName>.txt <namesExp_file> <outFile.pdf> [normalizeRPM]
+#   normalizeRPM (optional, default FALSE): TRUE/FALSE -- when TRUE, exp is converted to
+#   reads-per-million (of this library's own total exp) before the log10(1+x) transform that
+#   produces exp.log10, so expression is normalized for sequencing depth. Only applies when
+#   exp.log10 isn't already present in combined_counts.txt (see hasOwnExpLog10 below).
 #
 # Inputs   <mapName>.txt.annotated_tables.txt   (stage 10)
 #          <expName>.combined_counts.txt        (stage 07, or any pipeline producing the
@@ -160,6 +164,7 @@ namesExp <- read.table("/home/projects/ulitsky/shared/data/human/TRIP/single_com
 # Arguments from the terminal
 myArgs = commandArgs(trailingOnly = T)
 plot_name="temp.pdf"
+normalizeRPM = FALSE
 if (length(myArgs)>0)
 {
   path = myArgs[1]
@@ -167,10 +172,12 @@ if (length(myArgs)>0)
   namesExp_file = myArgs[3]
   plot_name = myArgs[4]
   namesExp<-read.table(paste0(path, namesExp_file))$V1
+  if (length(myArgs)>=5) normalizeRPM = as.logical(myArgs[5])
 }
 print(path)
 print(namesExp)
 print(plot_name)
+print(paste("normalizeRPM:", normalizeRPM))
 
 
 niceNames = gsub("_Expression", "", namesExp)
@@ -213,7 +220,17 @@ for (ind in 1:length(namesExp)) {
     rownames(merged)=merged$Barcode
   }
   if (!hasOwnExpLog10) {
-    merged$exp.log10 = log(1+merged$exp,10)
+    # normalizeRPM (default FALSE, opt in via the 5th command-line argument): converts
+    # merged$exp to reads-per-million (of this library's own total exp, i.e. sum(merged$exp))
+    # before the log10(1+x) transform, so exp.log10 reflects relative expression normalized
+    # for this library's sequencing depth instead of raw read counts. Only feeds exp.log10 --
+    # merged$exp itself, and exp.norm below (a distinct metric against merged$norm), are left
+    # untouched.
+    expForLog10 = merged$exp
+    if (normalizeRPM) {
+      expForLog10 = merged$exp / sum(merged$exp) * 1e6
+    }
+    merged$exp.log10 = log(1+expForLog10,10)
   }
   merged$exp.norm = log((1 + merged$exp) / (1 + merged$norm), 2)
   merged$Row.names=NULL
