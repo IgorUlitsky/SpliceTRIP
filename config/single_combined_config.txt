@@ -101,6 +101,10 @@ nonspliced_CPA_noP_pool1_rep1_S1	/home/projects/ulitsky/igoru/data/human/TRIP/ru
 nonspliced_CPA_noP_pool1_rep2_S2	/home/projects/ulitsky/igoru/data/human/TRIP/run6/nonspliced_CPA_noP_pool1_rep2_S2	_R1_001.fastq.gz	_R2_001.fastq.gz
 nonspliced_CPA_noP_pool2_rep1_S3	/home/projects/ulitsky/igoru/data/human/TRIP/run6/nonspliced_CPA_noP_pool2_rep1_S3	_R1_001.fastq.gz	_R2_001.fastq.gz
 nonspliced_CPA_noP_pool2_rep2_S4	/home/projects/ulitsky/igoru/data/human/TRIP/run6/nonspliced_CPA_noP_pool2_rep2_S4	_R1_001.fastq.gz	_R2_001.fastq.gz
+noP_5ss_1_1_Globin_Nonspliced_S41	/home/projects/ulitsky/igoru/data/human/TRIP/Globin_Nonspliced/noP_5ss_1_1_Globin_Nonspliced_S41	_R1_001.fastq.gz	_R2_001.fastq.gz
+noP_5ss_2_1_Globin_Nonspliced_S42	/home/projects/ulitsky/igoru/data/human/TRIP/Globin_Nonspliced/noP_5ss_2_1_Globin_Nonspliced_S42	_R1_001.fastq.gz	_R2_001.fastq.gz
+noP_CPA_1_1_Globin_Nonspliced_S39	/home/projects/ulitsky/igoru/data/human/TRIP/Globin_Nonspliced/noP_CPA_1_1_Globin_Nonspliced_S39	_R1_001.fastq.gz	_R2_001.fastq.gz
+noP_CPA_2_1_Globin_Nonspliced_S40	/home/projects/ulitsky/igoru/data/human/TRIP/Globin_Nonspliced/noP_CPA_2_1_Globin_Nonspliced_S40	_R1_001.fastq.gz	_R2_001.fastq.gz
 PolyAminus_5ss_noP_pool1_rep1_S91	/home/projects/ulitsky/igoru/data/human/TRIP/run5/PolyAminus_5ss_noP_pool1_rep1_S91	_R1_001.fastq.gz	_R2_001.fastq.gz
 PolyAminus_5ss_noP_pool1_rep2_S95	/home/projects/ulitsky/igoru/data/human/TRIP/run5/PolyAminus_5ss_noP_pool1_rep2_S95	_R1_001.fastq.gz	_R2_001.fastq.gz
 PolyAminus_5ss_noP_pool2_rep1_S92	/home/projects/ulitsky/igoru/data/human/TRIP/run5/PolyAminus_5ss_noP_pool2_rep1_S92	_R1_001.fastq.gz	_R2_001.fastq.gz
@@ -140,14 +144,18 @@ CPA_noP	Norm_CPA_noP_rep2_S90	PolyAminus_CPA_noP_pool2_rep2_S94	18	FALSE
 5ss	5ss_Norm_rep2_S61	5ss_Expression_rep2_S57	18	FALSE
 CPA	CPA_Norm_rep2_S58	CPA_Expression_rep2_S54	18	FALSE
 CPA	CPA_Norm_rep3_S59	CPA_Expression_rep3_S55	18	FALSE
-5ss_noP	Norm_5ss_noP_rep1_S91	nonspliced_5ss_noP_pool1_rep1_S5	18	FALSE
-5ss_noP	Norm_5ss_noP_rep1_S91	nonspliced_5ss_noP_pool1_rep2_S6	18	FALSE
-5ss_noP	Norm_5ss_noP_rep2_S92	nonspliced_5ss_noP_pool2_rep1_S7	18	FALSE
-5ss_noP	Norm_5ss_noP_rep2_S92	nonspliced_5ss_noP_pool2_rep2_S8	18	FALSE
-CPA_noP	Norm_CPA_noP_rep1_S89	nonspliced_CPA_noP_pool1_rep1_S1	18	FALSE
-CPA_noP	Norm_CPA_noP_rep1_S89	nonspliced_CPA_noP_pool1_rep2_S2	18	FALSE
-CPA_noP	Norm_CPA_noP_rep2_S90	nonspliced_CPA_noP_pool2_rep1_S3	18	FALSE
-CPA_noP	Norm_CPA_noP_rep2_S90	nonspliced_CPA_noP_pool2_rep2_S4	18	FALSE
+5ss_noP	Norm_5ss_noP_rep1_S91	noP_5ss_1_1_Globin_Nonspliced_S41	18	FALSE
+5ss_noP	Norm_5ss_noP_rep2_S92	noP_5ss_2_1_Globin_Nonspliced_S42	18	FALSE
+CPA_noP	Norm_CPA_noP_rep1_S89	noP_CPA_1_1_Globin_Nonspliced_S39	18	FALSE
+CPA_noP	Norm_CPA_noP_rep2_S90	noP_CPA_2_1_Globin_Nonspliced_S40	18	FALSE
+#5ss_noP	Norm_5ss_noP_rep1_S91	nonspliced_5ss_noP_pool1_rep1_S5	18	FALSE
+#5ss_noP	Norm_5ss_noP_rep1_S91	nonspliced_5ss_noP_pool1_rep2_S6	18	FALSE
+#5ss_noP	Norm_5ss_noP_rep2_S92	nonspliced_5ss_noP_pool2_rep1_S7	18	FALSE
+#5ss_noP	Norm_5ss_noP_rep2_S92	nonspliced_5ss_noP_pool2_rep2_S8	18	FALSE
+#CPA_noP	Norm_CPA_noP_rep1_S89	nonspliced_CPA_noP_pool1_rep1_S1	18	FALSE
+#CPA_noP	Norm_CPA_noP_rep1_S89	nonspliced_CPA_noP_pool1_rep2_S2	18	FALSE
+#CPA_noP	Norm_CPA_noP_rep2_S90	nonspliced_CPA_noP_pool2_rep1_S3	18	FALSE
+#CPA_noP	Norm_CPA_noP_rep2_S90	nonspliced_CPA_noP_pool2_rep2_S4	18	FALSE
 5ss_noP	Norm_5ss_noP_rep1_S91	3intron_5ss_noP_Pool1_Rep2_S106	18	FALSE
 5ss_noP	Norm_5ss_noP_rep1_S91	3intron_5ss_noP_Pool1_S95	18	FALSE
 5ss_noP	Norm_5ss_noP_rep2_S92	3intron_5ss_noP_Pool2_Rep2_S107	18	FALSE
