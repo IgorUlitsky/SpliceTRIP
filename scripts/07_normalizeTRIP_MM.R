@@ -46,6 +46,16 @@ if (length(myArgs)>0)
 # the flag the script behaves IDENTICALLY to the original normalizeTRIP_v2.R.
 oneMismatch = FALSE
 if (length(myArgs) >= 8 && myArgs[8] == "oneMismatch") oneMismatch = TRUE
+
+# keepUnnormalized: carry through every mapped barcode, including those with NO
+# normalization reads at all. Matched anywhere in the argument list rather than at a fixed
+# position, so it composes with oneMismatch in either order.
+#
+# NB this cannot be done by lowering minNormReads. A barcode with zero norm reads is absent
+# from <nameNorm>.counts.txt.gz entirely, so it never enters normTab at any threshold --
+# the barcode universe itself has to come from the genuine map set instead (see below).
+keepUnnormalized = any(myArgs == "keepUnnormalized")
+if (keepUnnormalized) print("keepUnnormalized: retaining mapped barcodes with no normalization reads")
 print(paste("oneMismatch flag:", oneMismatch))
 # ===== end NEW BLOCK ========================================================
 # ============================================================================
@@ -128,8 +138,9 @@ if (oneMismatch) {
 }
 # ===== end NEW BLOCK ====================================================================
 
-# Filtering minNormReads = 2
-minNormReads = 2
+# Filtering minNormReads = 2 (0 under keepUnnormalized, so barcodes seen once still keep
+# their count rather than being dropped and then re-added as a zero).
+minNormReads = if (keepUnnormalized) 0 else 2
 
 normTab=read.table(paste0(path_norm,nameNorm,".counts.txt.gz"),sep="\t",row.names = 1)
 print(paste(format(nrow(normTab),big.mark = ","),"normalization barcodes"))
@@ -188,7 +199,18 @@ print("Table of barcodeToInd indices")
 print(table(sapply(barcodeToInd[rownames(normTab),"x"],length)))
 
 # Retain single-position barcodes
-sharedBarcodes=rownames(normTab)[sapply(barcodeToInd[rownames(normTab),"x"],length)==1]
+# Single-position barcodes only, either way. Default: those present in the Norm library.
+# Under keepUnnormalized: every genuine barcode, so unnormalized ones come through with
+# norm=0 (df[is.na(df)]=0 below fills them in) instead of being silently dropped.
+if (keepUnnormalized) {
+  sharedBarcodes = rownames(barcodeToInd)[sapply(barcodeToInd[,"x"],length)==1]
+  print(paste(format(length(sharedBarcodes),big.mark=","),
+              "genuine single-position barcodes (keepUnnormalized); of these",
+              format(sum(sharedBarcodes %in% rownames(normTab)),big.mark=","),
+              "have normalization reads"))
+} else {
+  sharedBarcodes = rownames(normTab)[sapply(barcodeToInd[rownames(normTab),"x"],length)==1]
+}
 length(sharedBarcodes)
 df = data.frame(row.names=sharedBarcodes)
 df$norm = normTab[sharedBarcodes,"x"]

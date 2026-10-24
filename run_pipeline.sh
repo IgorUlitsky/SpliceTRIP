@@ -424,11 +424,14 @@ if [ "$TARGET" = "genuine_barcodes" ]; then echo "target=genuine_barcodes reache
 # One job per COMBOS row -- each row reads its own map/norm/exp inputs and writes its own
 # <expSample>.combined_counts.txt, no state shared between rows.
 echo "=== Stage 07: normalizeTRIP (combined_counts.txt, one job per COMBOS row) ==="
-while IFS=$'\t' read -r mapName normSample expSample effLength revComp oneMismatch; do
+while IFS=$'\t' read -r mapName normSample expSample effLength revComp oneMismatch keepUnnorm; do
   [ -z "$mapName" ] && continue
   echo "-- map=$mapName norm=$normSample exp=$expSample --"
   args=("$WORK/" "$WORK/" "${mapName}.txt" "$normSample" "$expSample" "$effLength" "$revComp")
   if [ "${oneMismatch:-}" = "yes" ]; then args+=("oneMismatch"); fi
+  # 7th COMBOS column: carry mapped barcodes with no normalization reads into
+  # combined_counts.txt (norm=0) instead of dropping them.
+  if [ "${keepUnnorm:-}" = "yes" ]; then args+=("keepUnnormalized"); fi
   submitOrRun "stage07_${expSample}.log" 8000 1 "$R_MOD" Rscript "$SCRIPTS/07_normalizeTRIP_MM.R" "${args[@]}"
 done < "$PARSED/COMBOS.tsv"
 waitForJobs

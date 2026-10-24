@@ -91,7 +91,11 @@ Norm_5ss_noP_rep2_S92	/home/projects/ulitsky/igoru/data/human/TRIP/run3/Norm_5ss
 Exp_total_5ss_noP_pool2_rep2_S80	/home/projects/ulitsky/igoru/data/human/TRIP/run5/Exp_total_5ss_noP_pool2_rep2_S80	_R1_001.fastq.gz	_R2_001.fastq.gz
 
 ### COMBOS
-# mapName<TAB>normSample<TAB>expSample<TAB>effLength<TAB>reverseComplement(TRUE|FALSE)<TAB>oneMismatch(optional: yes to enable)
+# mapName<TAB>normSample<TAB>expSample<TAB>effLength<TAB>reverseComplement(TRUE|FALSE)<TAB>oneMismatch(optional: yes to enable)<TAB>keepUnnormalized(optional: yes to enable)
+# keepUnnormalized=yes keeps every genuine single-position barcode in combined_counts.txt,
+# including ones with no reads in the Norm library (they get norm=0). Default drops them.
+# Note this is NOT the same as lowering a minimum-reads cutoff: a barcode with zero norm
+# reads is absent from the Norm counts file, so no threshold can reach it.<TAB>keepUnnormalized(optional: yes to enable)
 5ss_noP	Norm_5ss_noP_rep2_S92	Exp_total_5ss_noP_pool2_rep2_S80	18	FALSE
 
 ### SPLICED_UNSPLICED
