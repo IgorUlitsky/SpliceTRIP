@@ -61,7 +61,10 @@ submitOrRun() {
     local out jobid
     # BEDTools/R modules live under an AMD-specific easybuild tree, invisible on non-AMD_EPYC
     # hosts -- pin every job there (cheap, and correct for both the bedtools and R stages).
-    out=$(bsub -R "select[type==X86_64 && model==AMD_EPYC] rusage[mem=${mem}]" -n "$ncores" -o "$logfile" "$@" 2>&1)
+    # -q: without it bsub falls through to the submitting user's default queue (ulitsky),
+    # where these jobs can sit pending indefinitely while gsla-cpu is free -- a stage-09 job
+    # pended 2.5 h this way on 2026-10-24. run_pipeline.sh already does this; match it.
+    out=$(bsub -q "${LSF_QUEUE:-gsla-cpu}" -R "select[type==X86_64 && model==AMD_EPYC] rusage[mem=${mem}]" -n "$ncores" -o "$logfile" "$@" 2>&1)
     jobid=$(echo "$out" | grep -oE '<[0-9]+>' | head -1 | tr -d '<>')
     if [ -z "$jobid" ]; then
       echo "ERROR: bsub submission failed:" >&2

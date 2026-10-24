@@ -24,6 +24,6 @@ while IFS=$'\t' read -r mapName normSample expSample effLength revComp oneMismat
   args=("$WORK/" "$WORK/" "${mapName}.txt" "$normSample" "$expSample" "$effLength" "$revComp")
   if [ "${oneMismatch:-}" = "yes" ]; then args+=("oneMismatch"); fi
   echo "submitting: map=$mapName norm=$normSample exp=$expSample"
-  bsub -R "rusage[mem=8000]" -o "${WORK}/stage07_${expSample}.log" \
+  bsub -q "${LSF_QUEUE:-gsla-cpu}" -R "rusage[mem=8000]" -o "${WORK}/stage07_${expSample}.log" \
     "source /etc/profile.d/lmod.sh; module load R-bundle-Bioconductor/3.19-foss-2023b-R-4.4.1; Rscript $SCRIPTS/07_normalizeTRIP_MM.R ${args[*]}"
 done < "$PARSED/COMBOS.tsv"
